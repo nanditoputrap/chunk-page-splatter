@@ -18,7 +18,7 @@ const TeacherDashboardPage = () => {
   const counts = { puasa: 0, sholat: 0, tarawih: 0, rawatib: 0, tilawah: 0, dzikir: 0, dhuha: 0, tahajjud: 0, birrul: 0, ceramah: 0, takjil: 0, sedekah: 0 };
 
   selectedClass.students.forEach(std => {
-    const stats = getStats(std, selectedClass.name, submissions);
+    const stats = getStats(std, selectedClass.name, submissions, selectedClass.id);
     if (stats.puasa >= 25) counts.puasa++;
     if (stats.sholat >= 25) counts.sholat++;
     if (stats.tarawih >= 20) counts.tarawih++;
@@ -89,7 +89,7 @@ const TeacherDashboardPage = () => {
             </thead>
             <tbody className="divide-y divide-border text-sm font-medium text-foreground">
               {selectedClass.students.map((student, idx) => {
-                const stats = getStats(student, selectedClass.name, submissions);
+                const stats = getStats(student, selectedClass.name, submissions, selectedClass.id);
                 return (
                   <tr key={idx} className="hover:bg-secondary/30 transition cursor-pointer" onClick={() => setViewingStudent(student)}>
                     <td className="p-5 sticky left-0 bg-card/40 backdrop-blur-sm font-semibold">
@@ -140,7 +140,7 @@ const TeacherDashboardPage = () => {
 
       {/* Student Detail Modal */}
       {viewingStudent && (
-        <StudentDetailModal studentName={viewingStudent} className={selectedClass.name} teacher={selectedClass.teacher} submissions={submissions} onClose={() => setViewingStudent(null)} />
+        <StudentDetailModal studentName={viewingStudent} className={selectedClass.name} classId={selectedClass.id} teacher={selectedClass.teacher} submissions={submissions} onClose={() => setViewingStudent(null)} />
       )}
 
       {/* Print View */}
@@ -152,11 +152,11 @@ const TeacherDashboardPage = () => {
 };
 
 // Student Detail Modal Component
-const StudentDetailModal = ({ studentName, className, teacher, submissions, onClose }: {
-  studentName: string; className: string; teacher: string; submissions: any[]; onClose: () => void;
+const StudentDetailModal = ({ studentName, className, classId, teacher, submissions, onClose }: {
+  studentName: string; className: string; classId?: string; teacher: string; submissions: any[]; onClose: () => void;
 }) => {
   const dates = generateDateRange();
-  const studentSubs = submissions.filter((s: any) => s.studentName === studentName && s.className === className);
+  const studentSubs = submissions.filter((s: any) => s.studentName === studentName && (s.classId ? s.classId === classId : s.className === className));
 
   const StatusIcon = ({ checked }: { checked: boolean }) => checked ? <Check size={14} className="mx-auto text-emerald-500" /> : <span className="text-muted-foreground/30">-</span>;
 
@@ -260,8 +260,8 @@ const PrintView = ({ mode, selectedClass, submissions, onClose }: {
         </thead>
         <tbody>
           {selectedClass?.students.map((student: string, idx: number) => {
-            const stats = getStats(student, selectedClass.name, submissions);
-            const studentSubs = submissions.filter((s: any) => s.studentName === student && s.className === selectedClass.name);
+            const stats = getStats(student, selectedClass.name, submissions, selectedClass.id);
+            const studentSubs = submissions.filter((s: any) => s.studentName === student && (s.classId ? s.classId === selectedClass.id : s.className === selectedClass.name));
 
             let col: any = {};
             if (mode === 'monthly') {

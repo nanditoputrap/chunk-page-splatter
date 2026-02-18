@@ -15,7 +15,9 @@ const FormPage = () => {
   useEffect(() => {
     if (selectedStudent && selectedClass) {
       const existing = submissions.find(s =>
-        s.studentName === selectedStudent && s.className === selectedClass.name && s.date === formDate
+        s.studentName === selectedStudent &&
+        (s.classId ? s.classId === selectedClass.id : s.className === selectedClass.name) &&
+        s.date === formDate
       );
       if (existing) {
         setFormData(existing);
@@ -56,6 +58,7 @@ const FormPage = () => {
     saveSubmission({
       id: Date.now(),
       studentName: selectedStudent,
+      classId: selectedClass.id,
       className: selectedClass.name,
       ...formData,
       puasa: formData.isHaid ? 'Berhalangan' : formData.puasa,

@@ -1,7 +1,7 @@
 import { Submission, generateDateRange } from '@/lib/constants';
 import { formatLocalYmd } from '@/lib/date';
 
-export const getStats = (studentName: string, className: string, submissions: Submission[]) => {
+export const getStats = (studentName: string, className: string, submissions: Submission[], classId?: string) => {
   let totalScore = 0;
   let totalMaxScore = 0;
   let haidDaysCount = 0;
@@ -10,7 +10,10 @@ export const getStats = (studentName: string, className: string, submissions: Su
 
   dateRange.forEach(date => {
     const dateStr = formatLocalYmd(date);
-    const sub = submissions.find(s => s.studentName === studentName && s.className === className && s.date === dateStr);
+    const sub = submissions.find((s) => {
+      const sameClass = classId ? (s.classId ? s.classId === classId : s.className === className) : s.className === className;
+      return s.studentName === studentName && sameClass && s.date === dateStr;
+    });
 
     if (sub) {
       if (sub.isHaid) {

@@ -34,6 +34,7 @@ export interface FormData {
 export interface Submission extends FormData {
   id: number;
   studentName: string;
+  classId?: string;
   className: string;
   timestamp: string;
 }
