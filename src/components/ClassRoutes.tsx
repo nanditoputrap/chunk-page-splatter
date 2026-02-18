@@ -11,6 +11,7 @@ const ClassRoutes = () => {
   const { classId } = useParams<{ classId: string }>();
   const { schoolData, setSelectedClass, userRole, setUserRole, selectedClass, isHydrated } = useAmaliyah();
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -48,8 +49,6 @@ const ClassRoutes = () => {
   if (!selectedClass || selectedClass.id !== classId) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Memuat data kelas...</div>;
   }
-
-  const navigate = useNavigate();
 
   // landing page when hitting /classes/:classId
   const ClassHome = () => {
