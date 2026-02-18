@@ -9,9 +9,11 @@ const StudentSelectPage = () => {
   const { selectedClass, setSelectedStudent } = useAmaliyah();
   const [searchTerm, setSearchTerm] = useState('');
 
-  if (!selectedClass) return null;
+  if (!selectedClass) {
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Memuat data siswa...</div>;
+  }
 
-  const filteredStudents = selectedClass.students.filter(s =>
+  const filteredStudents = (selectedClass.students || []).filter(s =>
     s.toLowerCase().includes(searchTerm.toLowerCase())
   );
 

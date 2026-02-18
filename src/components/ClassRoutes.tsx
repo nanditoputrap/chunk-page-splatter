@@ -40,10 +40,15 @@ const ClassRoutes = () => {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Memuat data kelas...</div>;
   }
 
-  const exists = schoolData.some(c => c.id === classId);
-  if (!exists) {
+  const resolvedClass = schoolData.find((c) => c.id === classId) || null;
+  if (!resolvedClass) {
     return <NotFound />;
   }
+
+  if (!selectedClass || selectedClass.id !== classId) {
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Memuat data kelas...</div>;
+  }
+
   const navigate = useNavigate();
 
   // landing page when hitting /classes/:classId
