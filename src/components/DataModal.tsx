@@ -21,9 +21,11 @@ const DataModal = ({ type, classIndex, onClose }: DataModalProps) => {
     } else if (type === 'addStudent' && classIndex !== undefined) {
       if (!input1) return showNotif('Nama siswa kosong!');
       const newStudents = input1.split('\n').map(s => s.trim()).filter(s => s !== '');
-      const updated = [...schoolData];
-      updated[classIndex].students.push(...newStudents);
-      updated[classIndex].students.sort();
+      const updated = schoolData.map((cls, idx) => {
+        if (idx !== classIndex) return cls;
+        const mergedStudents = Array.from(new Set([...cls.students, ...newStudents])).sort();
+        return { ...cls, students: mergedStudents };
+      });
       setSchoolData(updated);
       showNotif(`${newStudents.length} Siswa Ditambahkan`);
     }

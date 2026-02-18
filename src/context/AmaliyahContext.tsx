@@ -64,6 +64,23 @@ const mergeSubmissions = (subs: Submission[]) => {
   return Array.from(unique.values());
 };
 
+const mergeSchoolData = (local: ClassData[], cloud: ClassData[]) => {
+  const localMap = new Map(local.map((c) => [c.id, c]));
+  const cloudMap = new Map(cloud.map((c) => [c.id, c]));
+  const classIds = Array.from(new Set([...local.map((c) => c.id), ...cloud.map((c) => c.id)]));
+
+  return classIds.map((id) => {
+    const localClass = localMap.get(id);
+    const cloudClass = cloudMap.get(id);
+    const base = cloudClass || localClass!;
+    const mergedStudents = Array.from(new Set([...(localClass?.students || []), ...(cloudClass?.students || [])])).sort();
+    return {
+      ...base,
+      students: mergedStudents,
+    };
+  });
+};
+
 const writeLocalCache = (schoolData: ClassData[], submissions: Submission[]) => {
   localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolData));
   localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(submissions));
@@ -77,11 +94,12 @@ const fetchCloudState = async () => {
 };
 
 const saveCloudState = async (schoolData: ClassData[], submissions: Submission[]) => {
-  await fetch('/api/state', {
+  const res = await fetch('/api/state', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ schoolData, submissions }),
   });
+  if (!res.ok) throw new Error(`Cloud save failed: ${res.status}`);
 };
 
 export const useAmaliyah = () => {
@@ -134,15 +152,17 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
         const cloud = await fetchCloudState();
         if (cloud) {
           const cloudSchool = Array.isArray(cloud.school_data) ? cloud.school_data as ClassData[] : [];
-          const cloudClassSource = cloudSchool.length > 0 ? cloudSchool : DEFAULT_CLASSES;
+          const mergedSchool = mergeSchoolData(normalizedSchool, cloudSchool);
+          const cloudClassSource = mergedSchool.length > 0 ? mergedSchool : DEFAULT_CLASSES;
           const cloudSubs = mergeSubmissions(normalizeSubmissions(
             Array.isArray(cloud.submissions) ? cloud.submissions as Submission[] : [],
             cloudClassSource,
           ));
 
-          setSchoolData(cloudSchool);
+          setSchoolData(mergedSchool);
           setSubmissions(cloudSubs);
-          writeLocalCache(cloudSchool, cloudSubs);
+          writeLocalCache(mergedSchool, cloudSubs);
+          await saveCloudState(mergedSchool, cloudSubs);
         } else {
           await saveCloudState(normalizedSchool, normalizedSubs);
         }

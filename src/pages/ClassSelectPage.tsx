@@ -12,8 +12,9 @@ const ClassSelectPage = () => {
   const [dataModal, setDataModal] = useState<{ show: boolean; type: 'addClass' | 'addStudent' | null; classIndex?: number }>({ show: false, type: null });
 
   const handleUpdateClass = (classIndex: number, field: string, value: string) => {
-    const newData = [...schoolData];
-    (newData[classIndex] as any)[field] = value;
+    const newData = schoolData.map((cls, idx) => (
+      idx === classIndex ? { ...cls, [field]: value } : cls
+    ));
     setSchoolData(newData);
   };
 
@@ -29,8 +30,10 @@ const ClassSelectPage = () => {
   const handleDeleteStudent = (e: React.MouseEvent, classIndex: number, studentIndex: number) => {
     e.stopPropagation();
     if (confirm('Hapus siswa ini?')) {
-      const newData = [...schoolData];
-      newData[classIndex].students.splice(studentIndex, 1);
+      const newData = schoolData.map((cls, idx) => {
+        if (idx !== classIndex) return cls;
+        return { ...cls, students: cls.students.filter((_, sIdx) => sIdx !== studentIndex) };
+      });
       setSchoolData(newData);
     }
   };
