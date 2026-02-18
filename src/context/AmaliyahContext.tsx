@@ -22,6 +22,7 @@ const AmaliyahContext = createContext<AmaliyahContextType | null>(null);
 
 const SUBMISSION_STORAGE_KEY = 'amaliyah_glass_data_v2';
 const SCHOOL_STORAGE_KEY = 'amaliyah_school_data';
+const MIGRATION_FLAG_KEY = 'amaliyah_migration_v1_done';
 const LEGACY_SUBMISSION_KEYS = [
   'amaliyah_glass_data',
   'amaliyah_data',
@@ -70,8 +71,12 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
   const [notification, setNotification] = useState<string | null>(null);
 
   useEffect(() => {
+    const hasMigrated = localStorage.getItem(MIGRATION_FLAG_KEY) === '1';
+
     const currentSchool = parseStoredArray<ClassData>(localStorage.getItem(SCHOOL_STORAGE_KEY));
-    const legacySchool = LEGACY_SCHOOL_KEYS.flatMap((key) => parseStoredArray<ClassData>(localStorage.getItem(key)));
+    const legacySchool = hasMigrated
+      ? []
+      : LEGACY_SCHOOL_KEYS.flatMap((key) => parseStoredArray<ClassData>(localStorage.getItem(key)));
     const schoolToUse = currentSchool.length > 0 ? currentSchool : legacySchool;
     const classSource = schoolToUse.length > 0 ? schoolToUse : DEFAULT_CLASSES;
     const classesByName = new Map(classSource.map((c) => [c.name, c.id]));
@@ -81,7 +86,9 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const currentSubs = parseStoredArray<Submission>(localStorage.getItem(SUBMISSION_STORAGE_KEY));
-    const legacySubs = LEGACY_SUBMISSION_KEYS.flatMap((key) => parseStoredArray<Submission>(localStorage.getItem(key)));
+    const legacySubs = hasMigrated
+      ? []
+      : LEGACY_SUBMISSION_KEYS.flatMap((key) => parseStoredArray<Submission>(localStorage.getItem(key)));
     const normalizedSubs = [...currentSubs, ...legacySubs].map((sub) => ({
       ...sub,
       classId: sub.classId || classesByName.get(sub.className),
@@ -90,6 +97,11 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
     if (mergedSubs.length > 0) {
       setSubmissions(mergedSubs);
       localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(mergedSubs));
+    }
+
+    if (!hasMigrated) {
+      [...LEGACY_SUBMISSION_KEYS, ...LEGACY_SCHOOL_KEYS].forEach((key) => localStorage.removeItem(key));
+      localStorage.setItem(MIGRATION_FLAG_KEY, '1');
     }
   }, []);
 
