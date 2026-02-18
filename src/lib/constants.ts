@@ -1,5 +1,5 @@
-export const RAMADHAN_START = new Date('2026-02-19');
-export const RAMADHAN_END = new Date('2026-03-20');
+export const RAMADHAN_START = new Date(2026, 1, 19);
+export const RAMADHAN_END = new Date(2026, 2, 20);
 export const KESISWAAN_NAME = "Amirah Risnawati, S.H., Gr";
 export const KEPALA_SEKOLAH = "Masita Dasa, S.Sos., M.Pd.I., Gr";
 export const PIN_GURU = "1234";

@@ -4,11 +4,13 @@ import GlassCard from '@/components/GlassCard';
 import CheckboxTile from '@/components/CheckboxTile';
 import { useAmaliyah } from '@/context/AmaliyahContext';
 import { DEFAULT_FORM, FormData } from '@/lib/constants';
+import { formatLocalYmd, parseYmdToLocalDate } from '@/lib/date';
 
 const FormPage = () => {
   const { selectedClass, selectedStudent, submissions, saveSubmission, showNotif } = useAmaliyah();
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
-  const [formData, setFormData] = useState<FormData>({ date: formDate, ...DEFAULT_FORM });
+  const getLocalIsoDate = () => formatLocalYmd(new Date());
+  const [formDate, setFormDate] = useState(getLocalIsoDate());
+  const [formData, setFormData] = useState<FormData>({ date: getLocalIsoDate(), ...DEFAULT_FORM });
 
   useEffect(() => {
     if (selectedStudent && selectedClass) {
@@ -30,9 +32,9 @@ const FormPage = () => {
   const fullDate = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const changeDate = (days: number) => {
-    const d = new Date(formDate);
+    const d = parseYmdToLocalDate(formDate);
     d.setDate(d.getDate() + days);
-    setFormDate(d.toISOString().split('T')[0]);
+    setFormDate(formatLocalYmd(d));
   };
 
   const toggleHaid = () => {

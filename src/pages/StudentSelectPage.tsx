@@ -38,7 +38,10 @@ const StudentSelectPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-10">
         {filteredStudents.length > 0 ? (
           filteredStudents.map((student, idx) => (
-            <GlassCard key={idx} onClick={() => { setSelectedStudent(student); navigate('/form'); }}
+            <GlassCard key={idx} onClick={() => {
+                setSelectedStudent(student);
+                navigate(`/classes/${selectedClass?.id}/form`);
+            }}
               className="p-5 cursor-pointer hover:bg-primary/5 active:scale-95 flex flex-row items-center gap-4 group transition-all">
               <div className="w-10 h-10 min-w-[2.5rem] rounded-full bg-gradient-to-br from-primary/10 to-indigo-50 border border-card flex items-center justify-center text-primary font-bold text-sm shadow-sm group-hover:scale-110 transition-transform">
                 {student.charAt(0)}

@@ -38,7 +38,13 @@ const ClassSelectPage = () => {
   const handleClassClick = (cls: typeof schoolData[0]) => {
     if (userRole === 'kesiswaan' && isEditing) return;
     setSelectedClass(cls);
-    navigate(userRole === 'student' ? '/students' : '/dashboard');
+    const base = `/classes/${cls.id}`;
+    if (!userRole) {
+      // no role selected yet, go to landing page for class
+      navigate(base);
+    } else {
+      navigate(userRole === 'student' ? `${base}/students` : `${base}/dashboard`);
+    }
   };
 
   return (

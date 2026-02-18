@@ -6,11 +6,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AmaliyahProvider } from "@/context/AmaliyahContext";
 import Navbar from "@/components/Navbar";
 import NotificationToast from "@/components/NotificationToast";
-import HomePage from "./pages/HomePage";
+import HomeDashboard from "./pages/HomePage";
+import SuperuserPage from "./pages/SuperuserPage";
 import ClassSelectPage from "./pages/ClassSelectPage";
-import StudentSelectPage from "./pages/StudentSelectPage";
-import FormPage from "./pages/FormPage";
-import TeacherDashboardPage from "./pages/TeacherDashboardPage";
+import ClassRoutes from "@/components/ClassRoutes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,11 +20,11 @@ const AppLayout = () => (
     <Navbar />
     <main>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<SuperuserPage />} />
+        <Route path="/home" element={<HomeDashboard />} />
         <Route path="/classes" element={<ClassSelectPage />} />
-        <Route path="/students" element={<StudentSelectPage />} />
-        <Route path="/form" element={<FormPage />} />
-        <Route path="/dashboard" element={<TeacherDashboardPage />} />
+        {/* routes scoped to a particular class id */}
+        <Route path="/classes/:classId/*" element={<ClassRoutes />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </main>

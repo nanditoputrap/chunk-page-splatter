@@ -5,6 +5,7 @@ import SimpleBarChart from '@/components/SimpleBarChart';
 import { useAmaliyah } from '@/context/AmaliyahContext';
 import { getStats } from '@/lib/stats';
 import { generateDateRange, KEPALA_SEKOLAH, KESISWAAN_NAME } from '@/lib/constants';
+import { formatLocalYmd } from '@/lib/date';
 
 const TeacherDashboardPage = () => {
   const { selectedClass, submissions } = useAmaliyah();
@@ -181,7 +182,7 @@ const StudentDetailModal = ({ studentName, className, teacher, submissions, onCl
             </thead>
             <tbody className="divide-y divide-border">
               {dates.map((date, idx) => {
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = formatLocalYmd(date);
                 const sub = studentSubs.find((s: any) => s.date === dateStr);
                 const isHaid = sub?.isHaid;
                 const displayDate = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
@@ -203,10 +204,10 @@ const StudentDetailModal = ({ studentName, className, teacher, submissions, onCl
                     </td>
                     <td className="p-3 text-center border-r border-border/30">{sub ? (isHaid ? <span className="text-muted-foreground/30 text-[10px]">Haid</span> : <StatusIcon checked={sub.tarawih} />) : <span className="text-muted-foreground/30">-</span>}</td>
                     <td className="p-3 text-center border-r border-border/30">{sub ? (isHaid ? <span className="text-muted-foreground/30 text-[10px]">Haid</span> : (parseInt(sub.rawatib) > 0 ? <Check size={14} className="mx-auto text-emerald-500" /> : '-')) : '-'}</td>
-                    <td className="p-3 text-center border-r border-border/30 text-[10px] font-medium text-muted-foreground">{sub ? (isHaid ? '-' : (sub.tilawahQuran ? "Qur'an" : sub.tilawahJilid ? 'Jilid' : '-')) : '-'}</td>
+                    <td className="p-3 text-center border-r border-border/30 text-[10px] font-medium text-muted-foreground">{sub ? (isHaid ? <span className="text-muted-foreground/30 text-[10px]">Haid</span> : (sub.tilawahQuran ? "Qur'an" : sub.tilawahJilid ? 'Jilid' : '-')) : '-'}</td>
                     <td className="p-3 text-center border-r border-border/30"><StatusIcon checked={sub?.dzikir} /></td>
-                    <td className="p-3 text-center border-r border-border/30">{sub ? (isHaid ? '-' : <StatusIcon checked={sub.dhuha} />) : '-'}</td>
-                    <td className="p-3 text-center border-r border-border/30">{sub ? (isHaid ? '-' : <StatusIcon checked={sub.tahajjud} />) : '-'}</td>
+                    <td className="p-3 text-center border-r border-border/30">{sub ? (isHaid ? <span className="text-muted-foreground/30 text-[10px]">Haid</span> : <StatusIcon checked={sub.dhuha} />) : '-'}</td>
+                    <td className="p-3 text-center border-r border-border/30">{sub ? (isHaid ? <span className="text-muted-foreground/30 text-[10px]">Haid</span> : <StatusIcon checked={sub.tahajjud} />) : '-'}</td>
                     <td className="p-3 text-center border-r border-border/30"><StatusIcon checked={sub?.birrul} /></td>
                     <td className="p-3 text-center border-r border-border/30"><StatusIcon checked={sub?.ceramah} /></td>
                     <td className="p-3 text-center border-r border-border/30"><StatusIcon checked={sub?.takjil} /></td>
@@ -226,7 +227,7 @@ const StudentDetailModal = ({ studentName, className, teacher, submissions, onCl
 const PrintView = ({ mode, selectedClass, submissions, onClose }: {
   mode: string; selectedClass: any; submissions: any[]; onClose: () => void;
 }) => {
-  const targetDate = new Date().toISOString().split('T')[0];
+  const targetDate = formatLocalYmd(new Date());
 
   return (
     <div className="print-container fixed inset-0 z-[200] bg-white text-black p-8 overflow-auto">
@@ -236,7 +237,7 @@ const PrintView = ({ mode, selectedClass, submissions, onClose }: {
       <div className="text-center border-b-2 border-black pb-4 mb-6">
         <h1 className="text-2xl font-bold uppercase">SMPIT IKHTIAR UNHAS</h1>
         <h2 className="text-xl font-bold uppercase mt-1">Laporan Amaliyah Ramadhan 1447 H</h2>
-        <p className="text-sm mt-1">Jl. Perintis Kemerdekaan Km. 10, Tamalanrea, Makassar</p>
+        <p className="text-sm mt-1">Jalan Sunu Kompleks UNHAS Baraya, Makassar</p>
       </div>
       <div className="flex justify-between mb-6 font-bold text-sm">
         <div><p>Kelas: {selectedClass?.name}</p><p>Wali Kelas: {selectedClass?.teacher}</p></div>
@@ -245,7 +246,8 @@ const PrintView = ({ mode, selectedClass, submissions, onClose }: {
           <p>Tanggal Cetak: {new Date().toLocaleDateString('id-ID')}</p>
         </div>
       </div>
-      <table className="w-full border-collapse border border-black text-[9px]">
+      <div className="max-w-5xl mx-auto overflow-auto">
+        <table className="w-full border-collapse border border-black text-[9px] table-auto">
         <thead>
           <tr className="bg-gray-200">
             <th className="border border-black p-1">No</th>
@@ -286,11 +288,11 @@ const PrintView = ({ mode, selectedClass, submissions, onClose }: {
                 puasa: sub ? (isHaid ? 'H' : (sub.puasa === 'Ya' ? '1' : '0')) : '-',
                 sholat: sub ? (isHaid ? 'H' : Object.values(sub.sholatWajib).filter(Boolean).length) : '-',
                 tarawih: sub ? (isHaid ? 'H' : (sub.tarawih ? '1' : '0')) : '-',
-                rawatib: sub ? (isHaid ? '-' : (parseInt(sub.rawatib) > 0 ? '1' : '0')) : '-',
-                tilawah: sub ? (isHaid ? '-' : (sub.tilawahQuran || sub.tilawahJilid ? '1' : '0')) : '-',
+                rawatib: sub ? (isHaid ? 'H' : (parseInt(sub.rawatib) > 0 ? '1' : '0')) : '-',
+                tilawah: sub ? (isHaid ? 'H' : (sub.tilawahQuran || sub.tilawahJilid ? '1' : '0')) : '-',
                 dzikir: sub ? (sub.dzikir ? '1' : '0') : '-',
-                dhuha: sub ? (isHaid ? '-' : (sub.dhuha ? '1' : '0')) : '-',
-                tahajjud: sub ? (isHaid ? '-' : (sub.tahajjud ? '1' : '0')) : '-',
+                dhuha: sub ? (isHaid ? 'H' : (sub.dhuha ? '1' : '0')) : '-',
+                tahajjud: sub ? (isHaid ? 'H' : (sub.tahajjud ? '1' : '0')) : '-',
                 birrul: sub ? (sub.birrul ? '1' : '0') : '-',
                 ceramah: sub ? (sub.ceramah ? '1' : '0') : '-',
                 takjil: sub ? (sub.takjil ? '1' : '0') : '-',
@@ -310,7 +312,8 @@ const PrintView = ({ mode, selectedClass, submissions, onClose }: {
             );
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
       <div className="mt-16">
         <div className="flex justify-end mb-8">
           <p className="text-right font-medium">Makassar, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>

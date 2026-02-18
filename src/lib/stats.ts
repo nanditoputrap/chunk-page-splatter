@@ -1,4 +1,5 @@
 import { Submission, generateDateRange } from '@/lib/constants';
+import { formatLocalYmd } from '@/lib/date';
 
 export const getStats = (studentName: string, className: string, submissions: Submission[]) => {
   let totalScore = 0;
@@ -8,7 +9,7 @@ export const getStats = (studentName: string, className: string, submissions: Su
   const dateRange = generateDateRange();
 
   dateRange.forEach(date => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatLocalYmd(date);
     const sub = submissions.find(s => s.studentName === studentName && s.className === className && s.date === dateStr);
 
     if (sub) {
@@ -23,7 +24,8 @@ export const getStats = (studentName: string, className: string, submissions: Su
       } else {
         totalMaxScore += 12;
         if (sub.puasa === 'Ya') { totalScore++; counts.puasa++; }
-        if (Object.values(sub.sholatWajib).filter(Boolean).length === 5) { totalScore++; counts.sholat++; }
+        // Monthly recap: count 1 point if at least one wajib prayer is checked that day.
+        if (Object.values(sub.sholatWajib).some(Boolean)) { totalScore++; counts.sholat++; }
         if (sub.tarawih) { totalScore++; counts.tarawih++; }
         if (parseInt(String(sub.rawatib)) > 0) { totalScore++; counts.rawatibDays++; }
         if (sub.tilawahQuran || sub.tilawahJilid) { totalScore++; counts.tilawah++; }

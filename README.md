@@ -71,3 +71,22 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+---
+
+## Class-specific routing
+
+Links are now separated per class so that each cohort has its own URL and students cannot easily access other classes' pages. You can directly share the link for a class and visitors will see the Amaliyah Ramadhan landing page for that class. **On first visit the app assumes the user is a student, sets the role automatically and immediately redirects to the student list (so they see names right away).** Teachers or kesiswaan users still have separate dashboard links; they can simply visit `/classes/:classId/dashboard` directly. If no role is set the app will prompt for PIN and then grant access. (Students will be treated as students automatically when opening the base class link.)
+
+The routing structure is:
+
+```
+/                     - home role selection
+/classes              - choose a class (list view)
+/classes/:classId      - class landing page (app name, role buttons); auto-redirects based on role
+/classes/:classId/students  - student selection for that class (student role)
+/classes/:classId/form      - report form (student role)
+/classes/:classId/dashboard - teacher/admin dashboard (teacher or kesiswaan role)
+```
+
+Unauthorized combinations (e.g. student visiting `/dashboard`) automatically redirect back to `/classes`.

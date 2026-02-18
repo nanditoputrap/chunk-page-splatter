@@ -20,6 +20,39 @@ interface AmaliyahContextType {
 
 const AmaliyahContext = createContext<AmaliyahContextType | null>(null);
 
+const SUBMISSION_STORAGE_KEY = 'amaliyah_glass_data_v2';
+const SCHOOL_STORAGE_KEY = 'amaliyah_school_data';
+const LEGACY_SUBMISSION_KEYS = [
+  'amaliyah_glass_data',
+  'amaliyah_data',
+  'submissions',
+  'lovable_app_data',
+];
+const LEGACY_SCHOOL_KEYS = [
+  'school_data',
+  'amaliyah_classes',
+  'lovable_school_data',
+];
+
+const parseStoredArray = <T,>(raw: string | null): T[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const mergeSubmissions = (submissions: Submission[]) => {
+  const unique = new Map<string, Submission>();
+  submissions.forEach((sub) => {
+    const key = `${sub.className}::${sub.studentName}::${sub.date}`;
+    unique.set(key, sub);
+  });
+  return Array.from(unique.values());
+};
+
 export const useAmaliyah = () => {
   const ctx = useContext(AmaliyahContext);
   if (!ctx) throw new Error('useAmaliyah must be used within AmaliyahProvider');
@@ -35,21 +68,32 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
   const [notification, setNotification] = useState<string | null>(null);
 
   useEffect(() => {
-    const savedSubs = localStorage.getItem('amaliyah_glass_data_v2');
-    if (savedSubs) setSubmissions(JSON.parse(savedSubs));
-    const savedSchool = localStorage.getItem('amaliyah_school_data');
-    if (savedSchool) setSchoolData(JSON.parse(savedSchool));
+    const currentSubs = parseStoredArray<Submission>(localStorage.getItem(SUBMISSION_STORAGE_KEY));
+    const legacySubs = LEGACY_SUBMISSION_KEYS.flatMap((key) => parseStoredArray<Submission>(localStorage.getItem(key)));
+    const mergedSubs = mergeSubmissions([...currentSubs, ...legacySubs]);
+    if (mergedSubs.length > 0) {
+      setSubmissions(mergedSubs);
+      localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(mergedSubs));
+    }
+
+    const currentSchool = parseStoredArray<ClassData>(localStorage.getItem(SCHOOL_STORAGE_KEY));
+    const legacySchool = LEGACY_SCHOOL_KEYS.flatMap((key) => parseStoredArray<ClassData>(localStorage.getItem(key)));
+    const schoolToUse = currentSchool.length > 0 ? currentSchool : legacySchool;
+    if (schoolToUse.length > 0) {
+      setSchoolData(schoolToUse);
+      localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolToUse));
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('amaliyah_school_data', JSON.stringify(schoolData));
+    localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolData));
   }, [schoolData]);
 
   const saveSubmission = useCallback((sub: Submission) => {
     setSubmissions(prev => {
       const filtered = prev.filter(s => !(s.studentName === sub.studentName && s.date === sub.date));
       const updated = [...filtered, sub];
-      localStorage.setItem('amaliyah_glass_data_v2', JSON.stringify(updated));
+      localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
   }, []);
