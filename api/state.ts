@@ -2,6 +2,10 @@ import { sql } from '@vercel/postgres';
 
 const STATE_ID = 'main';
 
+if (!process.env.POSTGRES_URL && process.env.DATABASE_URL) {
+  process.env.POSTGRES_URL = process.env.DATABASE_URL;
+}
+
 async function ensureTable() {
   await sql`
     create table if not exists app_state (
