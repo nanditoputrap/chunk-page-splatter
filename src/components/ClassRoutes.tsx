@@ -9,9 +9,10 @@ import PinModal from '@/components/PinModal';
 
 const ClassRoutes = () => {
   const { classId } = useParams<{ classId: string }>();
-  const { schoolData, setSelectedClass } = useAmaliyah();
+  const { schoolData, setSelectedClass, userRole, setUserRole, selectedClass, isHydrated } = useAmaliyah();
 
   useEffect(() => {
+    if (!isHydrated) return;
     if (classId) {
       const cls = schoolData.find(c => c.id === classId);
       if (cls) {
@@ -21,18 +22,20 @@ const ClassRoutes = () => {
         setSelectedClass(null);
       }
     }
-  }, [classId, schoolData, setSelectedClass]);
+  }, [classId, schoolData, setSelectedClass, isHydrated]);
 
   if (!classId) {
     return <Navigate to="/classes" replace />;
+  }
+
+  if (!isHydrated) {
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Memuat data kelas...</div>;
   }
 
   const exists = schoolData.some(c => c.id === classId);
   if (!exists) {
     return <NotFound />;
   }
-
-  const { userRole, setUserRole, selectedClass } = useAmaliyah();
   const navigate = useNavigate();
 
   // landing page when hitting /classes/:classId

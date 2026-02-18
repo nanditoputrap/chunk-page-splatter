@@ -4,6 +4,7 @@ import { ClassData, Submission, DEFAULT_CLASSES } from '@/lib/constants';
 interface AmaliyahContextType {
   userRole: string | null;
   setUserRole: (role: string | null) => void;
+  isHydrated: boolean;
   selectedClass: ClassData | null;
   setSelectedClass: (cls: ClassData | null) => void;
   selectedStudent: string | null;
@@ -109,7 +110,7 @@ export const useAmaliyah = () => {
 };
 
 export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(() => localStorage.getItem('amaliyah_user_role'));
   const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -178,6 +179,11 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    if (userRole) localStorage.setItem('amaliyah_user_role', userRole);
+    else localStorage.removeItem('amaliyah_user_role');
+  }, [userRole]);
+
+  useEffect(() => {
     if (!isHydrated) return;
     writeLocalCache(schoolData, submissions);
 
@@ -209,11 +215,13 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
     setUserRole(null);
     setSelectedClass(null);
     setSelectedStudent(null);
+    localStorage.removeItem('amaliyah_user_role');
   }, []);
 
   return (
     <AmaliyahContext.Provider value={{
       userRole, setUserRole,
+      isHydrated,
       selectedClass, setSelectedClass,
       selectedStudent, setSelectedStudent,
       submissions, setSubmissions, saveSubmission,
