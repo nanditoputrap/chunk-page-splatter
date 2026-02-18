@@ -90,3 +90,26 @@ The routing structure is:
 ```
 
 Unauthorized combinations (e.g. student visiting `/dashboard`) automatically redirect back to `/classes`.
+
+## Supabase Sync (Lintas Browser/Device)
+
+Aplikasi sekarang mendukung sinkronisasi data ke Supabase.
+
+### 1) Isi environment
+
+Copy `.env.example` menjadi `.env` lalu isi:
+
+```bash
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
+
+### 2) Buat tabel di Supabase
+
+Jalankan SQL di `supabase/schema.sql` pada SQL Editor Supabase.
+
+### 3) Deploy ulang
+
+Set env yang sama di Vercel (`Project Settings -> Environment Variables`) lalu redeploy.
+
+Jika env belum diisi, aplikasi tetap jalan dengan localStorage (hanya browser/device saat ini).
