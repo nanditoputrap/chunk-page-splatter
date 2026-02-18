@@ -17,6 +17,63 @@ async function ensureTable() {
   `;
 }
 
+type SchoolClass = {
+  id: string;
+  name: string;
+  teacher: string;
+  students?: string[];
+};
+
+type SubmissionItem = {
+  classId?: string;
+  className?: string;
+  studentName?: string;
+  date?: string;
+  [key: string]: any;
+};
+
+const parseArray = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as T[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const mergeSchoolData = (existing: SchoolClass[], incoming: SchoolClass[]) => {
+  const exMap = new Map(existing.map((c) => [c.id, c]));
+  const inMap = new Map(incoming.map((c) => [c.id, c]));
+  const ids = Array.from(new Set([...existing.map((c) => c.id), ...incoming.map((c) => c.id)]));
+
+  return ids.map((id) => {
+    const ex = exMap.get(id);
+    const inc = inMap.get(id);
+    const base = inc || ex!;
+    const students = Array.from(new Set([...(ex?.students || []), ...(inc?.students || [])]));
+    return {
+      ...base,
+      students,
+    };
+  });
+};
+
+const mergeSubmissions = (existing: SubmissionItem[], incoming: SubmissionItem[]) => {
+  const map = new Map<string, SubmissionItem>();
+  [...existing, ...incoming].forEach((sub) => {
+    const classKey = sub.classId || sub.className || '';
+    const studentKey = sub.studentName || '';
+    const dateKey = sub.date || '';
+    const key = `${classKey}::${studentKey}::${dateKey}`;
+    map.set(key, sub);
+  });
+  return Array.from(map.values());
+};
+
 export default async function handler(req: any, res: any) {
   try {
     await ensureTable();
@@ -29,12 +86,20 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'POST' || req.method === 'PUT') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-      const schoolData = Array.isArray(body.schoolData) ? body.schoolData : [];
-      const submissions = Array.isArray(body.submissions) ? body.submissions : [];
+      const incomingSchool = parseArray<SchoolClass>(body.schoolData);
+      const incomingSubs = parseArray<SubmissionItem>(body.submissions);
+
+      const existingRow = await sql`select school_data, submissions from app_state where id = ${STATE_ID} limit 1`;
+      const existing = existingRow.rows[0];
+      const existingSchool = parseArray<SchoolClass>(existing?.school_data);
+      const existingSubs = parseArray<SubmissionItem>(existing?.submissions);
+
+      const mergedSchool = mergeSchoolData(existingSchool, incomingSchool);
+      const mergedSubs = mergeSubmissions(existingSubs, incomingSubs);
 
       await sql`
         insert into app_state (id, school_data, submissions, updated_at)
-        values (${STATE_ID}, ${JSON.stringify(schoolData)}::jsonb, ${JSON.stringify(submissions)}::jsonb, now())
+        values (${STATE_ID}, ${JSON.stringify(mergedSchool)}::jsonb, ${JSON.stringify(mergedSubs)}::jsonb, now())
         on conflict (id)
         do update set
           school_data = excluded.school_data,
