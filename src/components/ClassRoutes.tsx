@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useParams, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAmaliyah } from '@/context/AmaliyahContext';
 import StudentSelectPage from '@/pages/StudentSelectPage';
 import FormPage from '@/pages/FormPage';
@@ -10,6 +10,7 @@ import PinModal from '@/components/PinModal';
 const ClassRoutes = () => {
   const { classId } = useParams<{ classId: string }>();
   const { schoolData, setSelectedClass, userRole, setUserRole, selectedClass, isHydrated } = useAmaliyah();
+  const location = useLocation();
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -23,6 +24,13 @@ const ClassRoutes = () => {
       }
     }
   }, [classId, schoolData, setSelectedClass, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (!userRole && (location.pathname.endsWith('/students') || location.pathname.endsWith('/form'))) {
+      setUserRole('student');
+    }
+  }, [isHydrated, location.pathname, userRole, setUserRole]);
 
   if (!classId) {
     return <Navigate to="/classes" replace />;
@@ -140,20 +148,20 @@ const ClassRoutes = () => {
       <Route
         path="students"
         element={
-          userRole === 'student' ? (
-            <StudentSelectPage />
-          ) : (
+          userRole === 'teacher' || userRole === 'kesiswaan' ? (
             <Navigate to="/classes" replace />
+          ) : (
+            <StudentSelectPage />
           )
         }
       />
       <Route
         path="form"
         element={
-          userRole === 'student' ? (
-            <FormPage />
-          ) : (
+          userRole === 'teacher' || userRole === 'kesiswaan' ? (
             <Navigate to="/classes" replace />
+          ) : (
+            <FormPage />
           )
         }
       />

@@ -46,7 +46,27 @@ const parseStoredArray = <T,>(raw: string | null): T[] => {
   }
 };
 
+const parseAnyArray = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed as T[] : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 const getSubmissionClassKey = (sub: Submission) => sub.classId || sub.className || '';
+
+const normalizeSchoolData = (classes: ClassData[]) => {
+  return classes.map((cls) => ({
+    ...cls,
+    students: Array.isArray(cls.students) ? cls.students.filter(Boolean) : [],
+  }));
+};
 
 const normalizeSubmissions = (subs: Submission[], classes: ClassData[]) => {
   const classesByName = new Map(classes.map((c) => [c.name, c.id]));
@@ -129,7 +149,9 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
         ? []
         : LEGACY_SCHOOL_KEYS.flatMap((key) => parseStoredArray<ClassData>(localStorage.getItem(key)));
       const schoolToUse = hasCurrentSchool ? currentSchool : legacySchool;
-      const normalizedSchool = hasCurrentSchool ? schoolToUse : (schoolToUse.length > 0 ? schoolToUse : DEFAULT_CLASSES);
+      const normalizedSchool = normalizeSchoolData(
+        hasCurrentSchool ? schoolToUse : (schoolToUse.length > 0 ? schoolToUse : DEFAULT_CLASSES),
+      );
 
       const rawCurrentSubs = localStorage.getItem(SUBMISSION_STORAGE_KEY);
       const hasCurrentSubs = rawCurrentSubs !== null;
@@ -152,11 +174,11 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
       try {
         const cloud = await fetchCloudState();
         if (cloud) {
-          const cloudSchool = Array.isArray(cloud.school_data) ? cloud.school_data as ClassData[] : [];
+          const cloudSchool = normalizeSchoolData(parseAnyArray<ClassData>(cloud.school_data));
           const mergedSchool = mergeSchoolData(normalizedSchool, cloudSchool);
           const cloudClassSource = mergedSchool.length > 0 ? mergedSchool : DEFAULT_CLASSES;
           const cloudSubs = mergeSubmissions(normalizeSubmissions(
-            Array.isArray(cloud.submissions) ? cloud.submissions as Submission[] : [],
+            parseAnyArray<Submission>(cloud.submissions),
             cloudClassSource,
           ));
 
