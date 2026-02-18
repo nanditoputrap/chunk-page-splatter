@@ -4,13 +4,24 @@ import { Search, ChevronRight } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
 import { useAmaliyah } from '@/context/AmaliyahContext';
 
+const LoadingDots = ({ text }: { text: string }) => (
+  <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-muted-foreground">
+    <div className="flex items-center gap-2">
+      <span className="w-2.5 h-2.5 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.2s]" />
+      <span className="w-2.5 h-2.5 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.1s]" />
+      <span className="w-2.5 h-2.5 rounded-full bg-primary/70 animate-bounce" />
+    </div>
+    <p className="text-sm">{text}</p>
+  </div>
+);
+
 const StudentSelectPage = () => {
   const navigate = useNavigate();
   const { selectedClass, setSelectedStudent } = useAmaliyah();
   const [searchTerm, setSearchTerm] = useState('');
 
   if (!selectedClass) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Memuat data siswa...</div>;
+    return <LoadingDots text="Memuat data siswa..." />;
   }
 
   const filteredStudents = (selectedClass.students || []).filter(s =>

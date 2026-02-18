@@ -85,23 +85,6 @@ const mergeSubmissions = (subs: Submission[]) => {
   return Array.from(unique.values());
 };
 
-const mergeSchoolData = (local: ClassData[], cloud: ClassData[]) => {
-  const localMap = new Map(local.map((c) => [c.id, c]));
-  const cloudMap = new Map(cloud.map((c) => [c.id, c]));
-  const classIds = Array.from(new Set([...local.map((c) => c.id), ...cloud.map((c) => c.id)]));
-
-  return classIds.map((id) => {
-    const localClass = localMap.get(id);
-    const cloudClass = cloudMap.get(id);
-    const base = cloudClass || localClass!;
-    const mergedStudents = Array.from(new Set([...(localClass?.students || []), ...(cloudClass?.students || [])])).sort();
-    return {
-      ...base,
-      students: mergedStudents,
-    };
-  });
-};
-
 const writeLocalCache = (schoolData: ClassData[], submissions: Submission[]) => {
   localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolData));
   localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(submissions));
@@ -175,17 +158,16 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
         const cloud = await fetchCloudState();
         if (cloud) {
           const cloudSchool = normalizeSchoolData(parseAnyArray<ClassData>(cloud.school_data));
-          const mergedSchool = mergeSchoolData(normalizedSchool, cloudSchool);
-          const cloudClassSource = mergedSchool.length > 0 ? mergedSchool : DEFAULT_CLASSES;
+          const cloudClassSource = cloudSchool.length > 0 ? cloudSchool : DEFAULT_CLASSES;
           const cloudSubs = mergeSubmissions(normalizeSubmissions(
             parseAnyArray<Submission>(cloud.submissions),
             cloudClassSource,
           ));
 
-          setSchoolData(mergedSchool);
+          setSchoolData(cloudSchool);
           setSubmissions(cloudSubs);
-          writeLocalCache(mergedSchool, cloudSubs);
-          await saveCloudState(mergedSchool, cloudSubs);
+          writeLocalCache(cloudSchool, cloudSubs);
+          await saveCloudState(cloudSchool, cloudSubs);
         } else {
           await saveCloudState(normalizedSchool, normalizedSubs);
         }

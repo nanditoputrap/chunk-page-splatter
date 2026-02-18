@@ -47,13 +47,11 @@ const parseArray = <T,>(value: unknown): T[] => {
 
 const mergeSchoolData = (existing: SchoolClass[], incoming: SchoolClass[]) => {
   const exMap = new Map(existing.map((c) => [c.id, c]));
-  const inMap = new Map(incoming.map((c) => [c.id, c]));
-  const ids = Array.from(new Set([...existing.map((c) => c.id), ...incoming.map((c) => c.id)]));
-
-  return ids.map((id) => {
-    const ex = exMap.get(id);
-    const inc = inMap.get(id);
-    const base = inc || ex!;
+  // Incoming list is authoritative for class existence.
+  // This allows class deletion to persist across refresh.
+  return incoming.map((inc) => {
+    const ex = exMap.get(inc.id);
+    const base = inc;
     const students = Array.from(new Set([...(ex?.students || []), ...(inc?.students || [])]));
     return {
       ...base,

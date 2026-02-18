@@ -7,6 +7,17 @@ import TeacherDashboardPage from '@/pages/TeacherDashboardPage';
 import NotFound from '@/pages/NotFound';
 import PinModal from '@/components/PinModal';
 
+const LoadingDots = ({ text }: { text: string }) => (
+  <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-muted-foreground">
+    <div className="flex items-center gap-2">
+      <span className="w-2.5 h-2.5 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.2s]" />
+      <span className="w-2.5 h-2.5 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.1s]" />
+      <span className="w-2.5 h-2.5 rounded-full bg-primary/70 animate-bounce" />
+    </div>
+    <p className="text-sm">{text}</p>
+  </div>
+);
+
 const ClassRoutes = () => {
   const { classId } = useParams<{ classId: string }>();
   const { schoolData, setSelectedClass, userRole, setUserRole, selectedClass, isHydrated } = useAmaliyah();
@@ -38,7 +49,7 @@ const ClassRoutes = () => {
   }
 
   if (!isHydrated) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Memuat data kelas...</div>;
+    return <LoadingDots text="Memuat data kelas..." />;
   }
 
   const resolvedClass = schoolData.find((c) => c.id === classId) || null;
@@ -47,7 +58,7 @@ const ClassRoutes = () => {
   }
 
   if (!selectedClass || selectedClass.id !== classId) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Memuat data kelas...</div>;
+    return <LoadingDots text="Memuat data kelas..." />;
   }
 
   // landing page when hitting /classes/:classId
