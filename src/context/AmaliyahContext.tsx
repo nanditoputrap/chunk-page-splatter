@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { ClassData, Submission, DEFAULT_CLASSES } from '@/lib/constants';
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 interface AmaliyahContextType {
   userRole: string | null;
@@ -24,7 +23,6 @@ const AmaliyahContext = createContext<AmaliyahContextType | null>(null);
 const SUBMISSION_STORAGE_KEY = 'amaliyah_glass_data_v2';
 const SCHOOL_STORAGE_KEY = 'amaliyah_school_data';
 const MIGRATION_FLAG_KEY = 'amaliyah_migration_v1_done';
-const CLOUD_STATE_ID = 'main';
 const LEGACY_SUBMISSION_KEYS = [
   'amaliyah_glass_data',
   'amaliyah_data',
@@ -49,21 +47,41 @@ const parseStoredArray = <T,>(raw: string | null): T[] => {
 
 const getSubmissionClassKey = (sub: Submission) => sub.classId || sub.className || '';
 
-const normalizeSubmissions = (submissions: Submission[], classes: ClassData[]) => {
+const normalizeSubmissions = (subs: Submission[], classes: ClassData[]) => {
   const classesByName = new Map(classes.map((c) => [c.name, c.id]));
-  return submissions.map((sub) => ({
+  return subs.map((sub) => ({
     ...sub,
     classId: sub.classId || classesByName.get(sub.className),
   }));
 };
 
-const mergeSubmissions = (submissions: Submission[]) => {
+const mergeSubmissions = (subs: Submission[]) => {
   const unique = new Map<string, Submission>();
-  submissions.forEach((sub) => {
+  subs.forEach((sub) => {
     const key = `${getSubmissionClassKey(sub)}::${sub.studentName}::${sub.date}`;
     unique.set(key, sub);
   });
   return Array.from(unique.values());
+};
+
+const writeLocalCache = (schoolData: ClassData[], submissions: Submission[]) => {
+  localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolData));
+  localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(submissions));
+};
+
+const fetchCloudState = async () => {
+  const res = await fetch('/api/state', { method: 'GET' });
+  if (!res.ok) throw new Error(`Cloud read failed: ${res.status}`);
+  const payload = await res.json();
+  return payload?.data || null;
+};
+
+const saveCloudState = async (schoolData: ClassData[], submissions: Submission[]) => {
+  await fetch('/api/state', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ schoolData, submissions }),
+  });
 };
 
 export const useAmaliyah = () => {
@@ -93,7 +111,6 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
         : LEGACY_SCHOOL_KEYS.flatMap((key) => parseStoredArray<ClassData>(localStorage.getItem(key)));
       const schoolToUse = hasCurrentSchool ? currentSchool : legacySchool;
       const normalizedSchool = hasCurrentSchool ? schoolToUse : (schoolToUse.length > 0 ? schoolToUse : DEFAULT_CLASSES);
-      const classSource = normalizedSchool.length > 0 ? normalizedSchool : DEFAULT_CLASSES;
 
       const rawCurrentSubs = localStorage.getItem(SUBMISSION_STORAGE_KEY);
       const hasCurrentSubs = rawCurrentSubs !== null;
@@ -102,47 +119,36 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
         ? []
         : LEGACY_SUBMISSION_KEYS.flatMap((key) => parseStoredArray<Submission>(localStorage.getItem(key)));
       const sourceSubs = hasCurrentSubs ? currentSubs : [...currentSubs, ...legacySubs];
-      const normalizedSubs = mergeSubmissions(normalizeSubmissions(sourceSubs, classSource));
+      const normalizedSubs = mergeSubmissions(normalizeSubmissions(sourceSubs, normalizedSchool));
 
       setSchoolData(normalizedSchool);
       setSubmissions(normalizedSubs);
-      localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(normalizedSchool));
-      localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(normalizedSubs));
+      writeLocalCache(normalizedSchool, normalizedSubs);
 
       if (!hasMigrated) {
         [...LEGACY_SUBMISSION_KEYS, ...LEGACY_SCHOOL_KEYS].forEach((key) => localStorage.removeItem(key));
         localStorage.setItem(MIGRATION_FLAG_KEY, '1');
       }
 
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const { data, error } = await supabase
-            .from('app_state')
-            .select('id, school_data, submissions')
-            .eq('id', CLOUD_STATE_ID)
-            .maybeSingle();
+      try {
+        const cloud = await fetchCloudState();
+        if (cloud) {
+          const cloudSchool = Array.isArray(cloud.school_data) ? cloud.school_data as ClassData[] : [];
+          const cloudClassSource = cloudSchool.length > 0 ? cloudSchool : DEFAULT_CLASSES;
+          const cloudSubs = mergeSubmissions(normalizeSubmissions(
+            Array.isArray(cloud.submissions) ? cloud.submissions as Submission[] : [],
+            cloudClassSource,
+          ));
 
-          if (error) throw error;
-
-          if (data) {
-            const cloudSchool = Array.isArray(data.school_data) ? (data.school_data as ClassData[]) : [];
-            const cloudClassSource = cloudSchool.length > 0 ? cloudSchool : DEFAULT_CLASSES;
-            const cloudSubsRaw = Array.isArray(data.submissions) ? (data.submissions as Submission[]) : [];
-            const cloudSubs = mergeSubmissions(normalizeSubmissions(cloudSubsRaw, cloudClassSource));
-            setSchoolData(cloudSchool);
-            setSubmissions(cloudSubs);
-            localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(cloudSchool));
-            localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(cloudSubs));
-          } else {
-            await supabase.from('app_state').upsert({
-              id: CLOUD_STATE_ID,
-              school_data: normalizedSchool,
-              submissions: normalizedSubs,
-            });
-          }
-        } catch (err) {
-          console.error('Supabase hydration failed. Falling back to local cache.', err);
+          setSchoolData(cloudSchool);
+          setSubmissions(cloudSubs);
+          writeLocalCache(cloudSchool, cloudSubs);
+        } else {
+          await saveCloudState(normalizedSchool, normalizedSubs);
         }
+      } catch (err) {
+        // API may be unavailable in local Vite dev; local cache still works.
+        console.error('Cloud sync unavailable, using local cache.', err);
       }
 
       setIsHydrated(true);
@@ -153,36 +159,24 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!isHydrated) return;
-    localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolData));
-    localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(submissions));
+    writeLocalCache(schoolData, submissions);
 
-    if (!isSupabaseConfigured || !supabase) return;
     const timeoutId = window.setTimeout(() => {
-      void supabase
-        .from('app_state')
-        .upsert({
-          id: CLOUD_STATE_ID,
-          school_data: schoolData,
-          submissions,
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error('Supabase sync failed', error);
-          }
-        });
+      void saveCloudState(schoolData, submissions).catch((err) => {
+        console.error('Cloud save failed, local cache kept.', err);
+      });
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
   }, [isHydrated, schoolData, submissions]);
 
   const saveSubmission = useCallback((sub: Submission) => {
-    setSubmissions(prev => {
+    setSubmissions((prev) => {
       const filtered = prev.filter((s) => {
         const sameClass = getSubmissionClassKey(s) === getSubmissionClassKey(sub);
         return !(sameClass && s.studentName === sub.studentName && s.date === sub.date);
       });
-      const updated = [...filtered, sub];
-      return updated;
+      return [...filtered, sub];
     });
   }, []);
 

@@ -91,25 +91,25 @@ The routing structure is:
 
 Unauthorized combinations (e.g. student visiting `/dashboard`) automatically redirect back to `/classes`.
 
-## Supabase Sync (Lintas Browser/Device)
+## Vercel Postgres Sync (Lintas Browser/Device)
 
-Aplikasi sekarang mendukung sinkronisasi data ke Supabase.
+Aplikasi sekarang sinkronisasi data lintas browser/device lewat `Vercel Postgres` menggunakan endpoint `api/state.ts`.
 
-### 1) Isi environment
+### 1) Tambahkan Vercel Postgres ke project
 
-Copy `.env.example` menjadi `.env` lalu isi:
+Di dashboard Vercel:
 
-```bash
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
-```
+- `Storage` -> `Create Database` -> pilih `Postgres`
+- Attach ke project ini
 
-### 2) Buat tabel di Supabase
+Vercel akan otomatis menyetel env Postgres di production.
 
-Jalankan SQL di `supabase/schema.sql` pada SQL Editor Supabase.
+### 2) Untuk local development (opsional)
+
+Copy `.env.example` menjadi `.env` dan isi env Postgres jika ingin test API secara lokal.
 
 ### 3) Deploy ulang
 
-Set env yang sama di Vercel (`Project Settings -> Environment Variables`) lalu redeploy.
+Redeploy project di Vercel. Setelah deploy, data akan tersimpan di database dan sama di browser/device lain.
 
-Jika env belum diisi, aplikasi tetap jalan dengan localStorage (hanya browser/device saat ini).
+Jika endpoint database tidak tersedia, aplikasi tetap fallback ke localStorage agar tetap bisa dipakai.
