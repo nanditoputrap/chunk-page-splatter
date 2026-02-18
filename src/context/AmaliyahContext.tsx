@@ -73,28 +73,33 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const hasMigrated = localStorage.getItem(MIGRATION_FLAG_KEY) === '1';
 
-    const currentSchool = parseStoredArray<ClassData>(localStorage.getItem(SCHOOL_STORAGE_KEY));
+    const rawCurrentSchool = localStorage.getItem(SCHOOL_STORAGE_KEY);
+    const hasCurrentSchool = rawCurrentSchool !== null;
+    const currentSchool = parseStoredArray<ClassData>(rawCurrentSchool);
     const legacySchool = hasMigrated
       ? []
       : LEGACY_SCHOOL_KEYS.flatMap((key) => parseStoredArray<ClassData>(localStorage.getItem(key)));
-    const schoolToUse = currentSchool.length > 0 ? currentSchool : legacySchool;
+    const schoolToUse = hasCurrentSchool ? currentSchool : legacySchool;
     const classSource = schoolToUse.length > 0 ? schoolToUse : DEFAULT_CLASSES;
     const classesByName = new Map(classSource.map((c) => [c.name, c.id]));
-    if (schoolToUse.length > 0) {
+    if (hasCurrentSchool || schoolToUse.length > 0) {
       setSchoolData(schoolToUse);
       localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolToUse));
     }
 
-    const currentSubs = parseStoredArray<Submission>(localStorage.getItem(SUBMISSION_STORAGE_KEY));
+    const rawCurrentSubs = localStorage.getItem(SUBMISSION_STORAGE_KEY);
+    const hasCurrentSubs = rawCurrentSubs !== null;
+    const currentSubs = parseStoredArray<Submission>(rawCurrentSubs);
     const legacySubs = hasMigrated
       ? []
       : LEGACY_SUBMISSION_KEYS.flatMap((key) => parseStoredArray<Submission>(localStorage.getItem(key)));
-    const normalizedSubs = [...currentSubs, ...legacySubs].map((sub) => ({
+    const sourceSubs = hasCurrentSubs ? currentSubs : [...currentSubs, ...legacySubs];
+    const normalizedSubs = sourceSubs.map((sub) => ({
       ...sub,
       classId: sub.classId || classesByName.get(sub.className),
     }));
     const mergedSubs = mergeSubmissions(normalizedSubs);
-    if (mergedSubs.length > 0) {
+    if (hasCurrentSubs || mergedSubs.length > 0) {
       setSubmissions(mergedSubs);
       localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(mergedSubs));
     }
