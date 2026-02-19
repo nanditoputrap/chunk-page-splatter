@@ -113,3 +113,19 @@ Copy `.env.example` menjadi `.env` dan isi env Postgres jika ingin test API seca
 Redeploy project di Vercel. Setelah deploy, data akan tersimpan di database dan sama di browser/device lain.
 
 Jika endpoint database tidak tersedia, aplikasi tetap fallback ke localStorage agar tetap bisa dipakai.
+
+## OpenAI Assistant
+
+Menu `/ai` sekarang memakai OpenAI melalui endpoint `api/ai`.
+
+Wajib set environment variable di Vercel:
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` (opsional, default `gpt-4.1-mini`)
+
+Endpoint AI dapat:
+
+- cari siswa lintas kelas
+- tampilkan siswa per kelas
+- tampilkan data harian siswa
+- tambah/hapus/ganti nama siswa melalui prompt

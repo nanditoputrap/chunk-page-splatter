@@ -1,26 +1,25 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { Bot, Send, Sparkles } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
 import { useAmaliyah } from '@/context/AmaliyahContext';
-import { Submission } from '@/lib/constants';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
   text: string;
 };
 
-const normalize = (text: string) => text.toLowerCase().trim();
-
 const AIAssistantPage = () => {
-  const { schoolData, setSchoolData, submissions } = useAmaliyah();
+  const { setSchoolData, setSubmissions, showNotif } = useAmaliyah();
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
       text: [
-        'Asisten aktif. Coba perintah:',
-        '- cari siswa sulaiman',
+        'AI Assistant aktif (OpenAI).',
+        'Contoh prompt:',
         '- tampilkan siswa kelas 8A2',
+        '- cari siswa sulaiman',
         '- tampilkan data harian siswa Nadhifa',
         '- tambah siswa NAMA ke kelas 8A2',
         '- hapus siswa NAMA dari kelas 8A2',
@@ -29,181 +28,43 @@ const AIAssistantPage = () => {
     },
   ]);
 
-  const classMap = useMemo(() => {
-    const map = new Map<string, typeof schoolData[number]>();
-    schoolData.forEach((cls) => map.set(cls.id.toLowerCase(), cls));
-    return map;
-  }, [schoolData]);
-
   const addMessage = (role: 'user' | 'assistant', text: string) => {
     setMessages((prev) => [...prev, { role, text }]);
   };
 
-  const findStudentDaily = (studentName: string, date?: string) => {
-    const filtered = submissions.filter((s) => normalize(s.studentName) === normalize(studentName));
-    if (filtered.length === 0) return null;
-    let pick: Submission | undefined;
-    if (date) pick = filtered.find((s) => s.date === date);
-    if (!pick) {
-      pick = [...filtered].sort((a, b) => b.date.localeCompare(a.date))[0];
-    }
-    return pick || null;
-  };
-
-  const runCommand = (raw: string) => {
-    const text = raw.trim();
-    const lower = normalize(text);
-    if (!text) return;
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isLoading) return;
 
     addMessage('user', text);
-
-    let match = lower.match(/^cari siswa (.+)$/i);
-    if (match) {
-      const query = normalize(match[1]);
-      const hits: Array<{ classId: string; name: string }> = [];
-      schoolData.forEach((cls) => {
-        cls.students.forEach((std) => {
-          if (normalize(std).includes(query)) hits.push({ classId: cls.id, name: std });
-        });
-      });
-      if (hits.length === 0) {
-        addMessage('assistant', `Tidak ada siswa cocok untuk "${match[1]}".`);
-      } else {
-        addMessage('assistant', hits.slice(0, 30).map((h) => `${h.name} (kelas ${h.classId})`).join('\n'));
-      }
-      return;
-    }
-
-    match = lower.match(/^tampilkan siswa kelas ([a-z0-9]+)$/i);
-    if (match) {
-      const classId = match[1].toLowerCase();
-      const cls = classMap.get(classId);
-      if (!cls) {
-        addMessage('assistant', `Kelas ${match[1].toUpperCase()} tidak ditemukan.`);
-      } else if (!cls.students.length) {
-        addMessage('assistant', `Kelas ${cls.id} belum punya data siswa.`);
-      } else {
-        addMessage('assistant', [`Siswa kelas ${cls.id}:`, ...cls.students].join('\n'));
-      }
-      return;
-    }
-
-    match = text.match(/^tampilkan data harian siswa (.+?)(?: tanggal (\d{4}-\d{2}-\d{2}))?$/i);
-    if (match) {
-      const studentName = match[1].trim();
-      const date = match[2];
-      const sub = findStudentDaily(studentName, date);
-      if (!sub) {
-        addMessage('assistant', `Data harian untuk "${studentName}" tidak ditemukan.`);
-        return;
-      }
-      const sholatCount = Object.values(sub.sholatWajib || {}).filter(Boolean).length;
-      addMessage(
-        'assistant',
-        [
-          `Data ${sub.studentName} - ${sub.classId || sub.className} (${sub.date})`,
-          `Puasa: ${sub.puasa}`,
-          `Sholat wajib: ${sholatCount}/5`,
-          `Tarawih: ${sub.tarawih ? 'Ya' : 'Tidak'}`,
-          `Rawatib: ${sub.rawatib}`,
-          `Tilawah: ${sub.tilawahQuran ? "Qur'an" : sub.tilawahJilid ? 'Jilid' : '-'}`,
-          `Dzikir: ${sub.dzikir ? 'Ya' : 'Tidak'}`,
-          `Dhuha: ${sub.dhuha ? 'Ya' : 'Tidak'}`,
-          `Tahajjud: ${sub.tahajjud ? 'Ya' : 'Tidak'}`,
-          `Birrul: ${sub.birrul ? 'Ya' : 'Tidak'}`,
-          `Ceramah: ${sub.ceramah ? 'Ya' : 'Tidak'}`,
-          `Takjil: ${sub.takjil ? 'Ya' : 'Tidak'}`,
-          `Sedekah: ${sub.sedekah ? 'Ya' : 'Tidak'}`,
-          `Status haid: ${sub.isHaid ? 'Ya' : 'Tidak'}`,
-        ].join('\n'),
-      );
-      return;
-    }
-
-    match = text.match(/^tambah siswa (.+) ke kelas ([A-Za-z0-9]+)$/i);
-    if (match) {
-      const studentName = match[1].trim();
-      const classId = match[2].toLowerCase();
-      const cls = classMap.get(classId);
-      if (!cls) {
-        addMessage('assistant', `Kelas ${match[2].toUpperCase()} tidak ditemukan.`);
-        return;
-      }
-      if (cls.students.some((s) => normalize(s) === normalize(studentName))) {
-        addMessage('assistant', `Siswa "${studentName}" sudah ada di kelas ${cls.id}.`);
-        return;
-      }
-      const updated = schoolData.map((c) =>
-        c.id === cls.id ? { ...c, students: [...c.students, studentName].sort() } : c,
-      );
-      setSchoolData(updated);
-      addMessage('assistant', `Siswa "${studentName}" ditambahkan ke kelas ${cls.id}.`);
-      return;
-    }
-
-    match = text.match(/^hapus siswa (.+) dari kelas ([A-Za-z0-9]+)$/i);
-    if (match) {
-      const studentName = match[1].trim();
-      const classId = match[2].toLowerCase();
-      const cls = classMap.get(classId);
-      if (!cls) {
-        addMessage('assistant', `Kelas ${match[2].toUpperCase()} tidak ditemukan.`);
-        return;
-      }
-      const before = cls.students.length;
-      const updated = schoolData.map((c) =>
-        c.id === cls.id
-          ? { ...c, students: c.students.filter((s) => normalize(s) !== normalize(studentName)) }
-          : c,
-      );
-      if (before === updated.find((c) => c.id === cls.id)?.students.length) {
-        addMessage('assistant', `Siswa "${studentName}" tidak ditemukan di kelas ${cls.id}.`);
-        return;
-      }
-      setSchoolData(updated);
-      addMessage('assistant', `Siswa "${studentName}" dihapus dari kelas ${cls.id}.`);
-      return;
-    }
-
-    match = text.match(/^ganti nama siswa (.+) jadi (.+) di kelas ([A-Za-z0-9]+)$/i);
-    if (match) {
-      const oldName = match[1].trim();
-      const newName = match[2].trim();
-      const classId = match[3].toLowerCase();
-      const cls = classMap.get(classId);
-      if (!cls) {
-        addMessage('assistant', `Kelas ${match[3].toUpperCase()} tidak ditemukan.`);
-        return;
-      }
-      let found = false;
-      const updated = schoolData.map((c) => {
-        if (c.id !== cls.id) return c;
-        const students = c.students.map((s) => {
-          if (normalize(s) === normalize(oldName)) {
-            found = true;
-            return newName;
-          }
-          return s;
-        });
-        return { ...c, students };
-      });
-      if (!found) {
-        addMessage('assistant', `Siswa "${oldName}" tidak ditemukan di kelas ${cls.id}.`);
-        return;
-      }
-      setSchoolData(updated);
-      addMessage('assistant', `Nama siswa "${oldName}" diganti menjadi "${newName}" di kelas ${cls.id}.`);
-      return;
-    }
-
-    addMessage('assistant', 'Perintah belum dikenali. Ketik pola seperti contoh di atas.');
-  };
-
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!input.trim()) return;
-    runCommand(input);
     setInput('');
+    setIsLoading(true);
+
+    try {
+      const history = messages.slice(-10);
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `AI request gagal (${res.status})`);
+      }
+
+      if (Array.isArray(data.schoolData)) setSchoolData(data.schoolData);
+      if (Array.isArray(data.submissions)) setSubmissions(data.submissions);
+
+      addMessage('assistant', String(data.reply || 'Selesai.'));
+    } catch (err: any) {
+      const msg = err?.message || 'Terjadi kesalahan saat memanggil AI.';
+      addMessage('assistant', `Gagal: ${msg}`);
+      showNotif('AI error. Cek env OPENAI_API_KEY di Vercel.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -215,17 +76,28 @@ const AIAssistantPage = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold">AI Assistant</h2>
-            <p className="text-xs text-muted-foreground">Asisten data guru/kesiswaan berbasis prompt</p>
+            <p className="text-xs text-muted-foreground">OpenAI + Aksi Data Sekolah</p>
           </div>
         </div>
       </GlassCard>
 
       <GlassCard className="p-4 h-[65vh] overflow-auto space-y-3">
         {messages.map((m, i) => (
-          <div key={i} className={`max-w-[90%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'ml-auto bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}>
+          <div
+            key={i}
+            className={`max-w-[90%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'ml-auto bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}
+          >
             {m.text}
           </div>
         ))}
+        {isLoading && (
+          <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-secondary text-foreground inline-flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.2s]" />
+            <span className="w-2 h-2 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.1s]" />
+            <span className="w-2 h-2 rounded-full bg-primary/70 animate-bounce" />
+            <span className="text-xs text-muted-foreground">AI sedang berpikir...</span>
+          </div>
+        )}
       </GlassCard>
 
       <form onSubmit={onSubmit} className="mt-4">
@@ -237,7 +109,11 @@ const AIAssistantPage = () => {
             placeholder="Contoh: tampilkan data harian siswa Nadhifa"
             className="flex-1 bg-transparent outline-none text-sm px-2"
           />
-          <button type="submit" className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold flex items-center gap-1">
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold flex items-center gap-1 disabled:opacity-60"
+          >
             <Send size={14} /> Kirim
           </button>
         </GlassCard>
@@ -247,4 +123,3 @@ const AIAssistantPage = () => {
 };
 
 export default AIAssistantPage;
-
