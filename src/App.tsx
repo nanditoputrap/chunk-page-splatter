@@ -7,7 +7,6 @@ import { AmaliyahProvider } from "@/context/AmaliyahContext";
 import Navbar from "@/components/Navbar";
 import NotificationToast from "@/components/NotificationToast";
 import HomeDashboard from "./pages/HomePage";
-import AIAssistantPage from "./pages/AIAssistantPage";
 import SuperuserPage from "./pages/SuperuserPage";
 import ClassSelectPage from "./pages/ClassSelectPage";
 import ClassRoutes from "@/components/ClassRoutes";
@@ -23,7 +22,6 @@ const AppLayout = () => (
       <Routes>
         <Route path="/" element={<SuperuserPage />} />
         <Route path="/home" element={<HomeDashboard />} />
-        <Route path="/ai" element={<AIAssistantPage />} />
         <Route path="/classes" element={<ClassSelectPage />} />
         {/* routes scoped to a particular class id */}
         <Route path="/classes/:classId/*" element={<ClassRoutes />} />
