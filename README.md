@@ -121,7 +121,7 @@ Menu `/ai` sekarang memakai Google Gemini melalui endpoint `api/ai`.
 Wajib set environment variable di Vercel:
 
 - `GEMINI_API_KEY`
-- `GEMINI_MODEL` (opsional, default `gemini-2.0-flash`)
+- `GEMINI_MODEL` (opsional, default `gemini-1.5-flash-latest`)
 
 Endpoint AI dapat:
 

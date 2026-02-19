@@ -232,8 +232,15 @@ export default async function handler(req: any, res: any) {
     ].join('\n');
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const requestedModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-    const fallbackModels = [requestedModel, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'];
+    const requestedModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
+    const fallbackModels = [
+      requestedModel,
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-pro',
+      'gemini-2.0-flash',
+    ];
 
     let raw = '';
     let lastErr: any = null;
