@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { Eye, X, Check, Printer, FileText, BarChart2, ListChecks } from 'lucide-react';
+import { Eye, X, Check, Printer, FileText, BarChart2, ListChecks, ChevronLeft, ChevronRight } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
 import SimpleBarChart from '@/components/SimpleBarChart';
 import { useAmaliyah } from '@/context/AmaliyahContext';
 import { getStats } from '@/lib/stats';
 import { generateDateRange, KEPALA_SEKOLAH, KESISWAAN_NAME } from '@/lib/constants';
-import { formatLocalYmd } from '@/lib/date';
+import { formatLocalYmd, parseYmdToLocalDate } from '@/lib/date';
 
 const TeacherDashboardPage = () => {
   const { selectedClass, submissions } = useAmaliyah();
   const [viewingStudent, setViewingStudent] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<string | null>(null);
   const [showDailyLog, setShowDailyLog] = useState(false);
+  const [selectedLogDate, setSelectedLogDate] = useState(formatLocalYmd(new Date()));
 
   if (!selectedClass) return <div className="p-10 text-center">Silakan pilih kelas terlebih dahulu.</div>;
 
@@ -54,14 +55,19 @@ const TeacherDashboardPage = () => {
     setTimeout(() => window.print(), 500);
   };
 
-  const today = formatLocalYmd(new Date());
-  const todaySubs = submissions
-    .filter((s) => (s.classId ? s.classId === selectedClass.id : s.className === selectedClass.name) && s.date === today)
+  const logDateSubs = submissions
+    .filter((s) => (s.classId ? s.classId === selectedClass.id : s.className === selectedClass.name) && s.date === selectedLogDate)
     .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
 
-  const submittedToday = Array.from(new Map(todaySubs.map((s) => [s.studentName, s])).values());
-  const submittedNameSet = new Set(submittedToday.map((s) => s.studentName));
-  const notSubmittedToday = selectedClass.students.filter((name) => !submittedNameSet.has(name));
+  const submittedOnLogDate = Array.from(new Map(logDateSubs.map((s) => [s.studentName, s])).values());
+  const submittedNameSet = new Set(submittedOnLogDate.map((s) => s.studentName));
+  const notSubmittedOnLogDate = selectedClass.students.filter((name) => !submittedNameSet.has(name));
+
+  const shiftLogDate = (days: number) => {
+    const d = parseYmdToLocalDate(selectedLogDate);
+    d.setDate(d.getDate() + days);
+    setSelectedLogDate(formatLocalYmd(d));
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-4 animate-in fade-in duration-500 pb-20">
@@ -82,8 +88,8 @@ const TeacherDashboardPage = () => {
             <button
               onClick={() => setShowDailyLog(true)}
               className="p-2.5 bg-card text-foreground border border-border rounded-xl hover:bg-secondary transition shadow-sm"
-              title="Log Pengisian Hari Ini"
-              aria-label="Log Pengisian Hari Ini"
+              title="Log Pengisian"
+              aria-label="Log Pengisian"
             >
               <ListChecks size={16} />
             </button>
@@ -172,44 +178,56 @@ const TeacherDashboardPage = () => {
           <GlassCard className="w-full max-w-2xl max-h-[85vh] overflow-hidden p-0 border border-border shadow-2xl">
             <div className="p-4 border-b border-border flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-foreground">Log Pengisian Hari Ini</h3>
-                <p className="text-xs text-muted-foreground">
-                  {selectedClass.name} • {today}
-                </p>
+                <h3 className="text-lg font-bold text-foreground">Log Pengisian Harian</h3>
+                <p className="text-xs text-muted-foreground">{selectedClass.name}</p>
               </div>
-              <button onClick={() => setShowDailyLog(false)} className="p-2 bg-secondary rounded-full hover:bg-secondary/80 transition text-muted-foreground">
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => shiftLogDate(-1)} className="p-1.5 bg-secondary rounded-md hover:bg-secondary/80 transition text-muted-foreground">
+                  <ChevronLeft size={14} />
+                </button>
+                <input
+                  type="date"
+                  value={selectedLogDate}
+                  onChange={(e) => setSelectedLogDate(e.target.value)}
+                  className="text-xs bg-card border border-border rounded-md px-2 py-1 text-foreground outline-none"
+                />
+                <button onClick={() => shiftLogDate(1)} className="p-1.5 bg-secondary rounded-md hover:bg-secondary/80 transition text-muted-foreground">
+                  <ChevronRight size={14} />
+                </button>
+                <button onClick={() => setShowDailyLog(false)} className="p-2 bg-secondary rounded-full hover:bg-secondary/80 transition text-muted-foreground">
+                  <X size={16} />
+                </button>
+              </div>
             </div>
             <div className="p-4 grid md:grid-cols-2 gap-4 max-h-[70vh] overflow-auto custom-scrollbar">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-emerald-600 mb-2">
-                  Sudah Mengisi ({submittedToday.length})
+                  Sudah Mengisi ({submittedOnLogDate.length})
                 </p>
                 <div className="space-y-1.5">
-                  {submittedToday.length ? submittedToday.map((s, idx) => (
+                  {submittedOnLogDate.length ? submittedOnLogDate.map((s, idx) => (
                     <div key={`${s.studentName}-${idx}`} className="text-sm px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800">
                       {s.studentName}
                     </div>
                   )) : (
                     <div className="text-sm px-3 py-2 rounded-lg bg-secondary text-muted-foreground">
-                      Belum ada pengisian hari ini.
+                      Belum ada pengisian pada tanggal ini.
                     </div>
                   )}
                 </div>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-amber-600 mb-2">
-                  Belum Mengisi ({notSubmittedToday.length})
+                  Belum Mengisi ({notSubmittedOnLogDate.length})
                 </p>
                 <div className="space-y-1.5">
-                  {notSubmittedToday.length ? notSubmittedToday.map((name, idx) => (
+                  {notSubmittedOnLogDate.length ? notSubmittedOnLogDate.map((name, idx) => (
                     <div key={`${name}-${idx}`} className="text-sm px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-800">
                       {name}
                     </div>
                   )) : (
                     <div className="text-sm px-3 py-2 rounded-lg bg-secondary text-muted-foreground">
-                      Semua siswa sudah mengisi hari ini.
+                      Semua siswa sudah mengisi pada tanggal ini.
                     </div>
                   )}
                 </div>
