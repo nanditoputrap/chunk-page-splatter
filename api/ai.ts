@@ -294,6 +294,9 @@ export default async function handler(req: any, res: any) {
         messages.push(msg);
 
         for (const toolCall of msg.tool_calls) {
+          if (toolCall.type !== 'function') {
+            continue;
+          }
           const toolName = toolCall.function.name;
           let args: any = {};
           try {
