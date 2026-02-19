@@ -114,14 +114,14 @@ Redeploy project di Vercel. Setelah deploy, data akan tersimpan di database dan 
 
 Jika endpoint database tidak tersedia, aplikasi tetap fallback ke localStorage agar tetap bisa dipakai.
 
-## OpenAI Assistant
+## Gemini Assistant
 
-Menu `/ai` sekarang memakai OpenAI melalui endpoint `api/ai`.
+Menu `/ai` sekarang memakai Google Gemini melalui endpoint `api/ai`.
 
 Wajib set environment variable di Vercel:
 
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` (opsional, default `gpt-4.1-mini`)
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` (opsional, default `gemini-1.5-flash`)
 
 Endpoint AI dapat:
 

@@ -61,7 +61,7 @@ const AIAssistantPage = () => {
     } catch (err: any) {
       const msg = err?.message || 'Terjadi kesalahan saat memanggil AI.';
       addMessage('assistant', `Gagal: ${msg}`);
-      showNotif('AI error. Cek env OPENAI_API_KEY di Vercel.');
+      showNotif('AI error. Cek env GEMINI_API_KEY di Vercel.');
     } finally {
       setIsLoading(false);
     }
