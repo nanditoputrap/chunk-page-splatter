@@ -52,7 +52,8 @@ const mergeSchoolData = (existing: SchoolClass[], incoming: SchoolClass[]) => {
   return incoming.map((inc) => {
     const ex = exMap.get(inc.id);
     const base = inc;
-    const students = Array.from(new Set([...(ex?.students || []), ...(inc?.students || [])]));
+    // Incoming class students are authoritative to make deletions persistent.
+    const students = Array.isArray(inc.students) ? inc.students : (ex?.students || []);
     return {
       ...base,
       students,
