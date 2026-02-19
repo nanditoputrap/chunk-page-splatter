@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Settings, ArrowLeft, Plus, Trash2, X, ChevronRight } from 'lucide-react';
+import { Users, Settings, ArrowLeft, Plus, Trash2, X, Save } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
 import DataModal from '@/components/DataModal';
 import { useAmaliyah } from '@/context/AmaliyahContext';
 
 const ClassSelectPage = () => {
   const navigate = useNavigate();
-  const { userRole, setSelectedClass, schoolData, setSchoolData } = useAmaliyah();
+  const { userRole, setSelectedClass, schoolData, setSchoolData, showNotif } = useAmaliyah();
   const [isEditing, setIsEditing] = useState(false);
   const [dataModal, setDataModal] = useState<{ show: boolean; type: 'addClass' | 'addStudent' | null; classIndex?: number }>({ show: false, type: null });
 
@@ -36,6 +36,22 @@ const ClassSelectPage = () => {
       });
       setSchoolData(newData);
     }
+  };
+
+  const handleUpdateStudent = (classIndex: number, studentIndex: number, value: string) => {
+    const newData = schoolData.map((cls, idx) => {
+      if (idx !== classIndex) return cls;
+      const students = cls.students.map((std, sIdx) => (sIdx === studentIndex ? value : std));
+      return { ...cls, students };
+    });
+    setSchoolData(newData);
+  };
+
+  const handleSaveDataPokok = () => {
+    // Force a fresh reference to ensure sync side-effects run.
+    const refreshed = schoolData.map((cls) => ({ ...cls, students: [...cls.students] }));
+    setSchoolData(refreshed);
+    showNotif('Perubahan data pokok disimpan');
   };
 
   const handleClassClick = (cls: typeof schoolData[0]) => {
@@ -69,10 +85,16 @@ const ClassSelectPage = () => {
               {isEditing ? 'Kembali ke Monitoring' : 'Edit Data Pokok Sekolah'}
             </button>
             {isEditing && (
-              <button onClick={() => setDataModal({ show: true, type: 'addClass' })}
-                className="px-4 py-2 bg-card border border-border text-muted-foreground rounded-full text-xs font-bold hover:bg-secondary flex items-center gap-1 transition">
-                <Plus size={14} /> Tambah Kelas
-              </button>
+              <>
+                <button onClick={() => setDataModal({ show: true, type: 'addClass' })}
+                  className="px-4 py-2 bg-card border border-border text-muted-foreground rounded-full text-xs font-bold hover:bg-secondary flex items-center gap-1 transition">
+                  <Plus size={14} /> Tambah Kelas
+                </button>
+                <button onClick={handleSaveDataPokok}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-full text-xs font-bold hover:opacity-90 flex items-center gap-1 transition">
+                  <Save size={14} /> Simpan Perubahan
+                </button>
+              </>
             )}
           </div>
         )}
@@ -107,7 +129,13 @@ const ClassSelectPage = () => {
                   <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                     {cls.students.map((std, sIdx) => (
                       <div key={sIdx} className="flex justify-between items-center text-xs bg-secondary/50 p-2 rounded border border-border">
-                        <span>{std}</span>
+                        <input
+                          type="text"
+                          value={std}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => handleUpdateStudent(idx, sIdx, e.target.value)}
+                          className="flex-1 bg-transparent outline-none text-foreground pr-2"
+                        />
                         <button onClick={(e) => handleDeleteStudent(e, idx, sIdx)} className="text-muted-foreground hover:text-destructive">
                           <X size={12} />
                         </button>
