@@ -14,6 +14,7 @@ interface AmaliyahContextType {
   saveSubmission: (sub: Submission) => void;
   schoolData: ClassData[];
   setSchoolData: (data: ClassData[]) => void;
+  syncDataNow: (nextSchoolData?: ClassData[]) => Promise<void>;
   notification: string | null;
   showNotif: (msg: string) => void;
   handleLogout: () => void;
@@ -200,6 +201,12 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
     return () => window.clearTimeout(timeoutId);
   }, [isHydrated, schoolData, submissions]);
 
+  const syncDataNow = useCallback(async (nextSchoolData?: ClassData[]) => {
+    const targetSchoolData = nextSchoolData ?? schoolData;
+    writeLocalCache(targetSchoolData, submissions);
+    await saveCloudState(targetSchoolData, submissions);
+  }, [schoolData, submissions]);
+
   const saveSubmission = useCallback((sub: Submission) => {
     setSubmissions((prev) => {
       const filtered = prev.filter((s) => {
@@ -229,7 +236,7 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
       selectedClass, setSelectedClass,
       selectedStudent, setSelectedStudent,
       submissions, setSubmissions, saveSubmission,
-      schoolData, setSchoolData,
+      schoolData, setSchoolData, syncDataNow,
       notification, showNotif,
       handleLogout,
     }}>

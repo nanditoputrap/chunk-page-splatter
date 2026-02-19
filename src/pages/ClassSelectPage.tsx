@@ -7,8 +7,9 @@ import { useAmaliyah } from '@/context/AmaliyahContext';
 
 const ClassSelectPage = () => {
   const navigate = useNavigate();
-  const { userRole, setSelectedClass, schoolData, setSchoolData, showNotif } = useAmaliyah();
+  const { userRole, setSelectedClass, schoolData, setSchoolData, showNotif, syncDataNow } = useAmaliyah();
   const [isEditing, setIsEditing] = useState(false);
+  const [isSavingDataPokok, setIsSavingDataPokok] = useState(false);
   const [dataModal, setDataModal] = useState<{ show: boolean; type: 'addClass' | 'addStudent' | null; classIndex?: number }>({ show: false, type: null });
 
   const handleUpdateClass = (classIndex: number, field: string, value: string) => {
@@ -47,11 +48,19 @@ const ClassSelectPage = () => {
     setSchoolData(newData);
   };
 
-  const handleSaveDataPokok = () => {
+  const handleSaveDataPokok = async () => {
     // Force a fresh reference to ensure sync side-effects run.
     const refreshed = schoolData.map((cls) => ({ ...cls, students: [...cls.students] }));
     setSchoolData(refreshed);
-    showNotif('Perubahan data pokok disimpan');
+    setIsSavingDataPokok(true);
+    try {
+      await syncDataNow(refreshed);
+      showNotif('Perubahan data pokok disimpan');
+    } catch {
+      showNotif('Gagal sinkron ke server. Coba lagi.');
+    } finally {
+      setIsSavingDataPokok(false);
+    }
   };
 
   const handleClassClick = (cls: typeof schoolData[0]) => {
@@ -90,9 +99,12 @@ const ClassSelectPage = () => {
                   className="px-4 py-2 bg-card border border-border text-muted-foreground rounded-full text-xs font-bold hover:bg-secondary flex items-center gap-1 transition">
                   <Plus size={14} /> Tambah Kelas
                 </button>
-                <button onClick={handleSaveDataPokok}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-full text-xs font-bold hover:opacity-90 flex items-center gap-1 transition">
-                  <Save size={14} /> Simpan Perubahan
+                <button
+                  onClick={() => void handleSaveDataPokok()}
+                  disabled={isSavingDataPokok}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-full text-xs font-bold hover:opacity-90 flex items-center gap-1 transition disabled:opacity-60"
+                >
+                  <Save size={14} /> {isSavingDataPokok ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
               </>
             )}
