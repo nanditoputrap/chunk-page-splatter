@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Users, ChevronRight, Lock, UserCheck } from 'lucide-react';
+import { BookOpen, Users, Lock, UserCheck, Bot } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
-import PinModal from '@/components/PinModal';
 import { useAmaliyah } from '@/context/AmaliyahContext';
 
 const HomeDashboard = () => {
@@ -44,6 +42,13 @@ const HomeDashboard = () => {
         >
           <UserCheck size={36} className="text-purple-700" />
           <span className="text-xl font-bold text-purple-700">Kesiswaan</span>
+        </GlassCard>
+        <GlassCard
+          onClick={() => navigate('/ai')}
+          className="w-64 h-40 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-xl hover:scale-105 active:scale-95 transition-all border-2 shadow-2xl"
+        >
+          <Bot size={36} className="text-indigo-700" />
+          <span className="text-xl font-bold text-indigo-700">AI Assistant</span>
         </GlassCard>
       </div>
       <p className="absolute bottom-6 text-xs text-muted-foreground font-medium">Created by dito</p>
