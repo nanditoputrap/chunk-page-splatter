@@ -58,6 +58,10 @@ const extractJsonObject = (text: string) => {
   return candidate.slice(first, last + 1);
 };
 
+const isModelNotFoundError = (err: any) =>
+  String(err?.message || '').includes('is not found') ||
+  String(err?.message || '').includes('[404 Not Found]');
+
 async function ensureTable() {
   await sql`
     create table if not exists app_state (
@@ -228,9 +232,30 @@ export default async function handler(req: any, res: any) {
     ].join('\n');
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-1.5-flash' });
-    const result = await model.generateContent(instruction);
-    const raw = result.response.text() || '';
+    const requestedModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    const fallbackModels = [
+      requestedModel,
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-pro',
+    ];
+
+    let raw = '';
+    let lastErr: any = null;
+    for (const modelName of Array.from(new Set(fallbackModels))) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(instruction);
+        raw = result.response.text() || '';
+        if (raw) break;
+      } catch (err: any) {
+        lastErr = err;
+        if (!isModelNotFoundError(err)) {
+          throw err;
+        }
+      }
+    }
+    if (!raw && lastErr) throw lastErr;
 
     const jsonText = extractJsonObject(raw);
     let plan: AIPlan | null = null;
