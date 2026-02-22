@@ -78,27 +78,41 @@ const tileClass: Record<AnnouncementItem['tone'], string> = {
 };
 
 const AnnouncementPopup = ({ open, onClose }: AnnouncementPopupProps) => {
+  const ANIMATION_MS = 280;
+  const ENTER_DELAY_MS = 120;
   const [isVisible, setIsVisible] = useState(false);
+  const [shouldRender, setShouldRender] = useState(open);
 
   useEffect(() => {
-    if (!open) return;
     const currentOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const enterTimer = window.setTimeout(() => {
-      setIsVisible(true);
-    }, 220);
+    let enterTimer: number | null = null;
+    let leaveTimer: number | null = null;
+
+    if (open) {
+      setShouldRender(true);
+      document.body.style.overflow = 'hidden';
+      enterTimer = window.setTimeout(() => {
+        setIsVisible(true);
+      }, ENTER_DELAY_MS);
+    } else {
+      setIsVisible(false);
+      leaveTimer = window.setTimeout(() => {
+        setShouldRender(false);
+        document.body.style.overflow = currentOverflow;
+      }, ANIMATION_MS);
+    }
 
     return () => {
-      window.clearTimeout(enterTimer);
-      setIsVisible(false);
+      if (enterTimer) window.clearTimeout(enterTimer);
+      if (leaveTimer) window.clearTimeout(leaveTimer);
       document.body.style.overflow = currentOverflow;
     };
-  }, [open]);
+  }, [open, ANIMATION_MS, ENTER_DELAY_MS]);
 
-  if (!open) return null;
+  if (!shouldRender) return null;
 
   return (
-    <div className={`fixed inset-0 z-[280] p-2 sm:p-4 flex items-center justify-center transition-all duration-300 ${isVisible ? 'bg-slate-950/45 backdrop-blur-sm' : 'bg-transparent backdrop-blur-none'}`}>
+    <div className={`fixed inset-0 z-[280] p-2 sm:p-4 flex items-center justify-center transition-all duration-300 ${isVisible ? 'bg-slate-950/45 backdrop-blur-sm' : 'bg-slate-950/0 backdrop-blur-none'}`}>
       <div className={`w-full max-w-xl overflow-hidden rounded-[1.5rem] bg-slate-100 shadow-2xl border border-white/40 transition-all duration-300 ${isVisible ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-3'}`}>
         <div className="relative px-4 sm:px-6 py-4 sm:py-5 bg-gradient-to-br from-emerald-600 to-emerald-800 text-white rounded-t-[1.5rem]">
           <button
