@@ -86,6 +86,11 @@ const mergeSubmissions = (subs: Submission[]) => {
   return Array.from(unique.values());
 };
 
+const hasMeaningfulData = (classes: ClassData[], subs: Submission[]) => {
+  if (subs.length > 0) return true;
+  return classes.some((cls) => Array.isArray(cls.students) && cls.students.length > 0);
+};
+
 const writeLocalCache = (schoolData: ClassData[], submissions: Submission[]) => {
   localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolData));
   localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(submissions));
@@ -159,16 +164,32 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
         const cloud = await fetchCloudState();
         if (cloud) {
           const cloudSchool = normalizeSchoolData(parseAnyArray<ClassData>(cloud.school_data));
-          const cloudClassSource = cloudSchool.length > 0 ? cloudSchool : DEFAULT_CLASSES;
+          const cloudClassSource = cloudSchool.length > 0 ? cloudSchool : normalizedSchool;
           const cloudSubs = mergeSubmissions(normalizeSubmissions(
             parseAnyArray<Submission>(cloud.submissions),
             cloudClassSource,
           ));
 
-          setSchoolData(cloudSchool);
-          setSubmissions(cloudSubs);
-          writeLocalCache(cloudSchool, cloudSubs);
-          await saveCloudState(cloudSchool, cloudSubs);
+          const cloudHasData = hasMeaningfulData(cloudSchool, cloudSubs);
+          const localHasData = hasMeaningfulData(normalizedSchool, normalizedSubs);
+
+          if (cloudHasData) {
+            const finalSchool = cloudSchool.length > 0 ? cloudSchool : normalizedSchool;
+            setSchoolData(finalSchool);
+            setSubmissions(cloudSubs);
+            writeLocalCache(finalSchool, cloudSubs);
+          } else if (localHasData) {
+            setSchoolData(normalizedSchool);
+            setSubmissions(normalizedSubs);
+            writeLocalCache(normalizedSchool, normalizedSubs);
+            await saveCloudState(normalizedSchool, normalizedSubs);
+          } else {
+            const safeSchool = normalizedSchool.length > 0 ? normalizedSchool : DEFAULT_CLASSES;
+            setSchoolData(safeSchool);
+            setSubmissions(normalizedSubs);
+            writeLocalCache(safeSchool, normalizedSubs);
+            await saveCloudState(safeSchool, normalizedSubs);
+          }
         } else {
           await saveCloudState(normalizedSchool, normalizedSubs);
         }

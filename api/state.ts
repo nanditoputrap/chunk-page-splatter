@@ -46,19 +46,28 @@ const parseArray = <T,>(value: unknown): T[] => {
 };
 
 const mergeSchoolData = (existing: SchoolClass[], incoming: SchoolClass[]) => {
-  const exMap = new Map(existing.map((c) => [c.id, c]));
-  // Incoming list is authoritative for class existence.
-  // This allows class deletion to persist across refresh.
-  return incoming.map((inc) => {
-    const ex = exMap.get(inc.id);
-    const base = inc;
-    // Incoming class students are authoritative to make deletions persistent.
-    const students = Array.isArray(inc.students) ? inc.students : (ex?.students || []);
-    return {
-      ...base,
-      students,
-    };
+  const getKey = (c: SchoolClass) => c.id || c.name;
+  const merged = new Map<string, SchoolClass>();
+
+  existing.forEach((cls) => {
+    merged.set(getKey(cls), {
+      ...cls,
+      students: Array.isArray(cls.students) ? cls.students : [],
+    });
   });
+
+  incoming.forEach((inc) => {
+    const key = getKey(inc);
+    const ex = merged.get(key);
+    merged.set(key, {
+      ...(ex || {}),
+      ...inc,
+      // If incoming omits students, keep existing students.
+      students: Array.isArray(inc.students) ? inc.students : (ex?.students || []),
+    });
+  });
+
+  return Array.from(merged.values());
 };
 
 const mergeSubmissions = (existing: SubmissionItem[], incoming: SubmissionItem[]) => {
