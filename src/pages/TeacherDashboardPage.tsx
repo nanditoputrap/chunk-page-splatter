@@ -18,21 +18,27 @@ const TeacherDashboardPage = () => {
 
   const totalStudents = selectedClass.students.length || 1;
   const counts = { puasa: 0, sholat: 0, tarawih: 0, rawatib: 0, tilawah: 0, dzikir: 0, dhuha: 0, tahajjud: 0, birrul: 0, ceramah: 0, takjil: 0, sedekah: 0 };
+  const dateRange = generateDateRange();
+  const today = new Date();
+  const elapsedDays = Math.max(1, dateRange.filter((d) => d <= today).length);
+  const totalDays = Math.max(1, dateRange.length);
+  const scaledTarget = (monthlyTarget: number) =>
+    Math.max(1, Math.round((monthlyTarget * elapsedDays) / totalDays));
 
   selectedClass.students.forEach(std => {
     const stats = getStats(std, selectedClass.name, submissions, selectedClass.id);
-    if (stats.puasa >= 25) counts.puasa++;
-    if (stats.sholat >= 25) counts.sholat++;
-    if (stats.tarawih >= 20) counts.tarawih++;
-    if (stats.rawatib >= 25) counts.rawatib++;
-    if (stats.tilawah >= 15) counts.tilawah++;
-    if (stats.dzikir >= 20) counts.dzikir++;
-    if (stats.dhuha >= 15) counts.dhuha++;
-    if (stats.tahajjud >= 5) counts.tahajjud++;
-    if (stats.birrul >= 25) counts.birrul++;
-    if (stats.ceramah >= 10) counts.ceramah++;
-    if (stats.takjil >= 2) counts.takjil++;
-    if (stats.sedekah >= 4) counts.sedekah++;
+    if (stats.puasa >= scaledTarget(25)) counts.puasa++;
+    if (stats.sholat >= scaledTarget(25)) counts.sholat++;
+    if (stats.tarawih >= scaledTarget(20)) counts.tarawih++;
+    if (stats.rawatib >= scaledTarget(25)) counts.rawatib++;
+    if (stats.tilawah >= scaledTarget(15)) counts.tilawah++;
+    if (stats.dzikir >= scaledTarget(20)) counts.dzikir++;
+    if (stats.dhuha >= scaledTarget(15)) counts.dhuha++;
+    if (stats.tahajjud >= scaledTarget(5)) counts.tahajjud++;
+    if (stats.birrul >= scaledTarget(25)) counts.birrul++;
+    if (stats.ceramah >= scaledTarget(10)) counts.ceramah++;
+    if (stats.takjil >= scaledTarget(2)) counts.takjil++;
+    if (stats.sedekah >= scaledTarget(4)) counts.sedekah++;
   });
 
   const chartData = [
@@ -157,6 +163,9 @@ const TeacherDashboardPage = () => {
       {/* Chart */}
       <div className="mb-8">
         <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-primary" /> Grafik Keaktifan Kelas (Semua Item)</h3>
+        <p className="text-xs text-muted-foreground mb-2">
+          Target grafik menyesuaikan hari berjalan ({elapsedDays}/{totalDays} hari Ramadhan).
+        </p>
         <GlassCard className="p-2">
           <SimpleBarChart data={chartData} />
         </GlassCard>

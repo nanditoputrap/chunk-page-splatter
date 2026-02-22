@@ -8,9 +8,15 @@ interface BarChartItem {
 
 const SimpleBarChart = ({ data }: { data: BarChartItem[] }) => (
   <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
-    <div className="flex items-end justify-between h-48 min-w-[600px] gap-2 pt-6 px-2">
+    <div className="flex items-end justify-between h-56 min-w-[680px] gap-2 pt-10 px-2">
       {data.map((item, idx) => (
         <div key={idx} className="flex flex-col items-center justify-end h-full flex-1 group">
+          <div className="text-[9px] font-semibold text-foreground mb-1 text-center leading-tight">
+            {item.value} pts
+          </div>
+          <div className="text-[9px] text-muted-foreground mb-1 text-center leading-tight">
+            {item.percentage}%
+          </div>
           <div className="relative w-full max-w-[30px] bg-secondary rounded-t-md h-full overflow-hidden flex items-end mx-auto">
             <div
               className={`w-full transition-all duration-1000 ease-out ${item.color}`}
