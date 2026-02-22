@@ -42,8 +42,10 @@ const HomeDashboard = () => {
     }
     setLoadingLogs(true);
     try {
-      const res = await fetch('/api/state?admin=logs&limit=500', {
-        headers: { 'x-log-pin': pinInput },
+      const res = await fetch('/api/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-log-pin': pinInput },
+        body: JSON.stringify({ adminAction: 'getLogs', pin: pinInput, limit: 500 }),
       });
       const payload = await res.json();
       if (!res.ok || !payload?.ok) throw new Error(payload?.error || `HTTP ${res.status}`);

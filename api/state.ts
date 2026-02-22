@@ -441,6 +441,25 @@ export default async function handler(req: any, res: any) {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
       const actorRole = String(body.actorRole || body.role || 'unknown');
 
+      if (body.adminAction === 'getLogs') {
+        const bodyPin = String(body.pin || '');
+        const headerPin = getLogPin(req);
+        if (bodyPin !== LOG_PIN && headerPin !== LOG_PIN) {
+          return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        const limitParam = Number(body.limit || 200);
+        const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(1000, limitParam)) : 200;
+        const result = await sql`
+          select
+            id, event_type, message, actor_role, class_id, student_name, event_date,
+            device_type, browser, user_agent, ip, metadata, created_at
+          from app_activity_log
+          order by id desc
+          limit ${limit}
+        `;
+        return res.status(200).json({ ok: true, logs: result.rows });
+      }
+
       if (body.adminAction === 'restoreBackup') {
         if (!process.env.STATE_ADMIN_TOKEN) {
           return res.status(503).json({ ok: false, error: 'STATE_ADMIN_TOKEN is not configured' });
