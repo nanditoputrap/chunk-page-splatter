@@ -28,6 +28,26 @@ async function ensureBackupTable() {
   `;
 }
 
+async function ensureLogTable() {
+  await sql`
+    create table if not exists app_activity_log (
+      id bigserial primary key,
+      event_type text not null,
+      message text not null,
+      actor_role text,
+      class_id text,
+      student_name text,
+      event_date text,
+      device_type text,
+      browser text,
+      user_agent text,
+      ip text,
+      metadata jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    )
+  `;
+}
+
 async function saveDailyBackup(schoolData: unknown, submissions: unknown) {
   await sql`
     insert into app_state_daily_backup (day, school_data, submissions, captured_at)
@@ -42,6 +62,7 @@ async function saveDailyBackup(schoolData: unknown, submissions: unknown) {
 }
 
 const isIsoDay = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const LOG_PIN = process.env.LOG_VIEW_PIN || '2167';
 
 const getQueryParam = (req: any, key: string) => {
   if (req?.query && typeof req.query[key] !== 'undefined') {
@@ -59,11 +80,16 @@ const getQueryParam = (req: any, key: string) => {
 const getAdminToken = (req: any) =>
   String(req.headers?.['x-admin-token'] || getQueryParam(req, 'token') || '');
 
+const getLogPin = (req: any) =>
+  String(req.headers?.['x-log-pin'] || getQueryParam(req, 'pin') || '');
+
 const isAdminAuthorized = (req: any) => {
   const expected = process.env.STATE_ADMIN_TOKEN;
   if (!expected) return false;
   return getAdminToken(req) === expected;
 };
+
+const isLogAuthorized = (req: any) => getLogPin(req) === LOG_PIN;
 
 type SchoolClass = {
   id: string;
@@ -80,6 +106,16 @@ type SubmissionItem = {
   [key: string]: any;
 };
 
+type ActivityLog = {
+  eventType: string;
+  message: string;
+  actorRole?: string;
+  classId?: string;
+  studentName?: string;
+  eventDate?: string;
+  metadata?: Record<string, any>;
+};
+
 const parseArray = <T,>(value: unknown): T[] => {
   if (Array.isArray(value)) return value as T[];
   if (typeof value === 'string') {
@@ -92,6 +128,168 @@ const parseArray = <T,>(value: unknown): T[] => {
   }
   return [];
 };
+
+const detectDeviceType = (ua: string) => {
+  if (/Mobile|Android|iPhone|Windows Phone|Opera Mini/i.test(ua)) return 'HP';
+  if (/iPad|Tablet/i.test(ua)) return 'Tablet';
+  return 'Laptop/Desktop';
+};
+
+const detectBrowser = (ua: string) => {
+  if (/Edg\//i.test(ua)) return 'Edge';
+  if (/OPR\//i.test(ua) || /Opera/i.test(ua)) return 'Opera';
+  if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) return 'Chrome';
+  if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return 'Safari';
+  if (/Firefox\//i.test(ua)) return 'Firefox';
+  return 'Unknown';
+};
+
+const getClientMeta = (req: any) => {
+  const userAgent = String(req.headers?.['user-agent'] || '');
+  const forwarded = String(req.headers?.['x-forwarded-for'] || '');
+  const ip = forwarded.split(',')[0]?.trim() || String(req.headers?.['x-real-ip'] || '');
+  return {
+    userAgent,
+    ip,
+    deviceType: detectDeviceType(userAgent),
+    browser: detectBrowser(userAgent),
+  };
+};
+
+const submissionKey = (sub: SubmissionItem) => {
+  const classKey = sub.classId || sub.className || '';
+  const studentKey = sub.studentName || '';
+  const dateKey = sub.date || '';
+  return `${classKey}::${studentKey}::${dateKey}`;
+};
+
+const summarizeStateChanges = (
+  beforeSchool: SchoolClass[],
+  afterSchool: SchoolClass[],
+  beforeSubs: SubmissionItem[],
+  afterSubs: SubmissionItem[],
+  actorRole: string,
+) => {
+  const logs: ActivityLog[] = [];
+
+  const beforeClassMap = new Map(beforeSchool.map((c) => [c.id, c]));
+  const afterClassMap = new Map(afterSchool.map((c) => [c.id, c]));
+
+  afterClassMap.forEach((afterClass, classId) => {
+    const beforeClass = beforeClassMap.get(classId);
+    if (!beforeClass) {
+      logs.push({
+        eventType: 'class_added',
+        message: `Kelas ditambahkan: ${afterClass.id} - ${afterClass.name}`,
+        actorRole,
+        classId: afterClass.id,
+      });
+      return;
+    }
+
+    if (beforeClass.name !== afterClass.name || beforeClass.teacher !== afterClass.teacher) {
+      logs.push({
+        eventType: 'class_updated',
+        message: `Data kelas diperbarui: ${afterClass.id}`,
+        actorRole,
+        classId: afterClass.id,
+      });
+    }
+
+    const beforeStudents = new Set((beforeClass.students || []).map((s) => s.trim()));
+    const afterStudents = new Set((afterClass.students || []).map((s) => s.trim()));
+    afterStudents.forEach((s) => {
+      if (!beforeStudents.has(s)) {
+        logs.push({
+          eventType: 'student_added',
+          message: `Siswa ditambahkan: ${s} (${afterClass.id})`,
+          actorRole,
+          classId: afterClass.id,
+          studentName: s,
+        });
+      }
+    });
+    beforeStudents.forEach((s) => {
+      if (!afterStudents.has(s)) {
+        logs.push({
+          eventType: 'student_removed',
+          message: `Siswa dihapus: ${s} (${afterClass.id})`,
+          actorRole,
+          classId: afterClass.id,
+          studentName: s,
+        });
+      }
+    });
+  });
+
+  beforeClassMap.forEach((beforeClass, classId) => {
+    if (!afterClassMap.has(classId)) {
+      logs.push({
+        eventType: 'class_removed',
+        message: `Kelas dihapus: ${beforeClass.id} - ${beforeClass.name}`,
+        actorRole,
+        classId: beforeClass.id,
+      });
+    }
+  });
+
+  const beforeSubMap = new Map(beforeSubs.map((s) => [submissionKey(s), s]));
+  const afterSubMap = new Map(afterSubs.map((s) => [submissionKey(s), s]));
+
+  afterSubMap.forEach((afterSub, key) => {
+    const beforeSub = beforeSubMap.get(key);
+    if (!beforeSub) {
+      logs.push({
+        eventType: 'submission_added',
+        message: `Pengisian ditambahkan: ${afterSub.studentName || '-'} (${afterSub.classId || afterSub.className || '-'}) ${afterSub.date || ''}`,
+        actorRole,
+        classId: String(afterSub.classId || ''),
+        studentName: String(afterSub.studentName || ''),
+        eventDate: String(afterSub.date || ''),
+      });
+      return;
+    }
+    if (JSON.stringify(beforeSub) !== JSON.stringify(afterSub)) {
+      logs.push({
+        eventType: 'submission_updated',
+        message: `Pengisian diperbarui: ${afterSub.studentName || '-'} (${afterSub.classId || afterSub.className || '-'}) ${afterSub.date || ''}`,
+        actorRole,
+        classId: String(afterSub.classId || ''),
+        studentName: String(afterSub.studentName || ''),
+        eventDate: String(afterSub.date || ''),
+      });
+    }
+  });
+
+  return logs;
+};
+
+async function saveActivityLogs(req: any, logs: ActivityLog[]) {
+  if (!logs.length) return;
+  const client = getClientMeta(req);
+  const limited = logs.slice(0, 200);
+  for (const log of limited) {
+    await sql`
+      insert into app_activity_log (
+        event_type, message, actor_role, class_id, student_name, event_date,
+        device_type, browser, user_agent, ip, metadata
+      )
+      values (
+        ${log.eventType},
+        ${log.message},
+        ${log.actorRole || null},
+        ${log.classId || null},
+        ${log.studentName || null},
+        ${log.eventDate || null},
+        ${client.deviceType},
+        ${client.browser},
+        ${client.userAgent},
+        ${client.ip},
+        ${JSON.stringify(log.metadata || {})}::jsonb
+      )
+    `;
+  }
+}
 
 const mergeSchoolData = (existing: SchoolClass[], incoming: SchoolClass[]) => {
   const getKey = (c: SchoolClass) => c.id || c.name;
@@ -168,8 +366,26 @@ export default async function handler(req: any, res: any) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     await ensureTable();
     await ensureBackupTable();
+    await ensureLogTable();
 
     if (req.method === 'GET') {
+      if (getQueryParam(req, 'admin') === 'logs') {
+        if (!isLogAuthorized(req)) {
+          return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        const limitParam = Number(getQueryParam(req, 'limit') || 200);
+        const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(1000, limitParam)) : 200;
+        const result = await sql`
+          select
+            id, event_type, message, actor_role, class_id, student_name, event_date,
+            device_type, browser, user_agent, ip, metadata, created_at
+          from app_activity_log
+          order by id desc
+          limit ${limit}
+        `;
+        return res.status(200).json({ ok: true, logs: result.rows });
+      }
+
       if (getQueryParam(req, 'admin') === 'backups') {
         if (!process.env.STATE_ADMIN_TOKEN) {
           return res.status(503).json({ ok: false, error: 'STATE_ADMIN_TOKEN is not configured' });
@@ -223,6 +439,7 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'POST' || req.method === 'PUT') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const actorRole = String(body.actorRole || body.role || 'unknown');
 
       if (body.adminAction === 'restoreBackup') {
         if (!process.env.STATE_ADMIN_TOKEN) {
@@ -259,6 +476,12 @@ export default async function handler(req: any, res: any) {
             submissions = excluded.submissions,
             updated_at = now()
         `;
+        await saveActivityLogs(req, [{
+          eventType: 'backup_restore',
+          message: `Restore backup harian: ${day}`,
+          actorRole: 'admin',
+          metadata: { day, classCount: backupSchool.length, submissionCount: backupSubs.length },
+        }]);
 
         return res.status(200).json({
           ok: true,
@@ -297,6 +520,13 @@ export default async function handler(req: any, res: any) {
         mergeSchoolData(existingSchool, incomingSchool),
         mergedSubs,
       );
+      const activityLogs = summarizeStateChanges(
+        existingSchool,
+        mergedSchool,
+        existingSubs,
+        mergedSubs,
+        actorRole,
+      );
 
       await sql`
         insert into app_state (id, school_data, submissions, updated_at)
@@ -308,6 +538,7 @@ export default async function handler(req: any, res: any) {
           updated_at = now()
       `;
       await saveDailyBackup(mergedSchool, mergedSubs);
+      await saveActivityLogs(req, activityLogs);
 
       return res.status(200).json({ ok: true });
     }

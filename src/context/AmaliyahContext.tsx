@@ -136,11 +136,16 @@ const fetchCloudState = async () => {
   return payload?.data || null;
 };
 
-const saveCloudState = async (schoolData: ClassData[], submissions: Submission[]) => {
+const saveCloudState = async (schoolData: ClassData[], submissions: Submission[], actorRole?: string | null) => {
   const res = await fetch('/api/state', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ schoolData, submissions }),
+    body: JSON.stringify({
+      schoolData,
+      submissions,
+      actorRole: actorRole || null,
+      sourcePath: typeof window !== 'undefined' ? window.location.pathname : '',
+    }),
   });
   if (!res.ok) throw new Error(`Cloud save failed: ${res.status}`);
 };
@@ -220,18 +225,18 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
             setSchoolData(fixedLocal);
             setSubmissions(normalizedSubs);
             writeLocalCache(fixedLocal, normalizedSubs);
-            await saveCloudState(fixedLocal, normalizedSubs);
+            await saveCloudState(fixedLocal, normalizedSubs, userRole);
           } else {
             const safeSchool = normalizedSchool.length > 0 ? normalizedSchool : DEFAULT_CLASSES;
             const fixedSafeSchool = healClassesFromSubmissions(safeSchool, normalizedSubs);
             setSchoolData(fixedSafeSchool);
             setSubmissions(normalizedSubs);
             writeLocalCache(fixedSafeSchool, normalizedSubs);
-            await saveCloudState(fixedSafeSchool, normalizedSubs);
+            await saveCloudState(fixedSafeSchool, normalizedSubs, userRole);
           }
         } else {
           const fixedLocal = healClassesFromSubmissions(normalizedSchool, normalizedSubs);
-          await saveCloudState(fixedLocal, normalizedSubs);
+          await saveCloudState(fixedLocal, normalizedSubs, userRole);
         }
       } catch (err) {
         // API may be unavailable in local Vite dev; local cache still works.
@@ -259,7 +264,7 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
     writeLocalCache(healedSchool, submissions);
 
     const timeoutId = window.setTimeout(() => {
-      void saveCloudState(healedSchool, submissions).catch((err) => {
+      void saveCloudState(healedSchool, submissions, userRole).catch((err) => {
         console.error('Cloud save failed, local cache kept.', err);
       });
     }, 300);
@@ -270,8 +275,8 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
   const syncDataNow = useCallback(async (nextSchoolData?: ClassData[]) => {
     const targetSchoolData = healClassesFromSubmissions(nextSchoolData ?? schoolData, submissions);
     writeLocalCache(targetSchoolData, submissions);
-    await saveCloudState(targetSchoolData, submissions);
-  }, [schoolData, submissions]);
+    await saveCloudState(targetSchoolData, submissions, userRole);
+  }, [schoolData, submissions, userRole]);
 
   const saveSubmission = useCallback((sub: Submission) => {
     setSubmissions((prev) => {

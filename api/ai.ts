@@ -73,6 +73,67 @@ async function ensureTable() {
   `;
 }
 
+async function ensureLogTable() {
+  await sql`
+    create table if not exists app_activity_log (
+      id bigserial primary key,
+      event_type text not null,
+      message text not null,
+      actor_role text,
+      class_id text,
+      student_name text,
+      event_date text,
+      device_type text,
+      browser text,
+      user_agent text,
+      ip text,
+      metadata jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    )
+  `;
+}
+
+const detectDeviceType = (ua: string) => {
+  if (/Mobile|Android|iPhone|Windows Phone|Opera Mini/i.test(ua)) return 'HP';
+  if (/iPad|Tablet/i.test(ua)) return 'Tablet';
+  return 'Laptop/Desktop';
+};
+
+const detectBrowser = (ua: string) => {
+  if (/Edg\//i.test(ua)) return 'Edge';
+  if (/OPR\//i.test(ua) || /Opera/i.test(ua)) return 'Opera';
+  if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) return 'Chrome';
+  if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return 'Safari';
+  if (/Firefox\//i.test(ua)) return 'Firefox';
+  return 'Unknown';
+};
+
+async function saveAiLog(req: any, message: string, metadata: Record<string, any>) {
+  await ensureLogTable();
+  const ua = String(req.headers?.['user-agent'] || '');
+  const forwarded = String(req.headers?.['x-forwarded-for'] || '');
+  const ip = forwarded.split(',')[0]?.trim() || String(req.headers?.['x-real-ip'] || '');
+  await sql`
+    insert into app_activity_log (
+      event_type, message, actor_role, class_id, student_name, event_date,
+      device_type, browser, user_agent, ip, metadata
+    )
+    values (
+      ${'ai_state_change'},
+      ${message},
+      ${'ai'},
+      ${String(metadata.classId || '') || null},
+      ${String(metadata.studentName || '') || null},
+      ${String(metadata.eventDate || '') || null},
+      ${detectDeviceType(ua)},
+      ${detectBrowser(ua)},
+      ${ua},
+      ${ip},
+      ${JSON.stringify(metadata)}::jsonb
+    )
+  `;
+}
+
 async function loadState(): Promise<AppState> {
   await ensureTable();
   const result = await sql`select school_data, submissions from app_state where id = ${STATE_ID} limit 1`;
@@ -328,6 +389,12 @@ export default async function handler(req: any, res: any) {
     }
 
     if (shouldPersist) await saveState(state);
+    if (shouldPersist) {
+      await saveAiLog(req, `Perubahan data via AI: ${plan?.action || 'unknown'}`, {
+        action: plan?.action || 'unknown',
+        args: plan?.args || {},
+      });
+    }
 
     return res.status(200).json({
       ok: true,
