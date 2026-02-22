@@ -369,6 +369,23 @@ export default async function handler(req: any, res: any) {
     await ensureLogTable();
 
     if (req.method === 'GET') {
+      if (String(req.headers?.['x-log-mode'] || '') === '1') {
+        if (!isLogAuthorized(req)) {
+          return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        const limitFromHeader = Number(req.headers?.['x-log-limit'] || 200);
+        const limit = Number.isFinite(limitFromHeader) ? Math.max(1, Math.min(1000, limitFromHeader)) : 200;
+        const result = await sql`
+          select
+            id, event_type, message, actor_role, class_id, student_name, event_date,
+            device_type, browser, user_agent, ip, metadata, created_at
+          from app_activity_log
+          order by id desc
+          limit ${limit}
+        `;
+        return res.status(200).json({ ok: true, logs: result.rows });
+      }
+
       if (getQueryParam(req, 'admin') === 'logs') {
         if (!isLogAuthorized(req)) {
           return res.status(401).json({ ok: false, error: 'Unauthorized' });
