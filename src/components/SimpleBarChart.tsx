@@ -11,9 +11,6 @@ const SimpleBarChart = ({ data }: { data: BarChartItem[] }) => (
     <div className="flex items-end justify-between h-56 min-w-[680px] gap-2 pt-10 px-2">
       {data.map((item, idx) => (
         <div key={idx} className="flex flex-col items-center justify-end h-full flex-1 group">
-          <div className="text-[9px] font-semibold text-foreground mb-1 text-center leading-tight">
-            {item.value} pts
-          </div>
           <div className="text-[9px] text-muted-foreground mb-1 text-center leading-tight">
             {item.percentage}%
           </div>
