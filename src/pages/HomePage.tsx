@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Users, Lock, UserCheck, History, X, Search } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
+import AnnouncementPopup from '@/components/AnnouncementPopup';
 import { useAmaliyah } from '@/context/AmaliyahContext';
 
 type ActivityLogItem = {
@@ -30,6 +31,7 @@ const HomeDashboard = () => {
   const [logs, setLogs] = useState<ActivityLogItem[]>([]);
   const [logFilter, setLogFilter] = useState('');
   const [activeTab, setActiveTab] = useState<'changes' | 'sync'>('changes');
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
 
   const handleRoleSelect = (role: string) => {
     setUserRole(role);
@@ -156,6 +158,8 @@ const HomeDashboard = () => {
         </GlassCard>
       </div>
       <p className="absolute bottom-6 text-xs text-muted-foreground font-medium">Created by dito</p>
+
+      <AnnouncementPopup open={showAnnouncement} onClose={() => setShowAnnouncement(false)} />
 
       {showPinModal && (
         <div className="fixed inset-0 z-[290] bg-card/65 backdrop-blur-md p-4 flex items-center justify-center">
