@@ -130,8 +130,42 @@ const mergeSubmissions = (existing: SubmissionItem[], incoming: SubmissionItem[]
   return Array.from(map.values());
 };
 
+const ensureClassesFromSubmissions = (classes: SchoolClass[], submissions: SubmissionItem[]) => {
+  const byId = new Map<string, SchoolClass>();
+
+  classes.forEach((cls) => {
+    const id = String(cls.id || cls.name || '').trim();
+    if (!id) return;
+    byId.set(id, {
+      id,
+      name: cls.name || id,
+      teacher: cls.teacher || '',
+      students: Array.isArray(cls.students) ? [...new Set(cls.students.filter(Boolean))] : [],
+    });
+  });
+
+  submissions.forEach((sub) => {
+    const id = String(sub.classId || sub.className || '').trim();
+    if (!id) return;
+    const className = String(sub.className || id).trim() || id;
+    const studentName = String(sub.studentName || '').trim();
+
+    if (!byId.has(id)) {
+      byId.set(id, { id, name: className, teacher: '', students: [] });
+    }
+    const cls = byId.get(id)!;
+    if (!cls.name && className) cls.name = className;
+    if (studentName && !cls.students?.includes(studentName)) {
+      cls.students = [...(cls.students || []), studentName];
+    }
+  });
+
+  return Array.from(byId.values());
+};
+
 export default async function handler(req: any, res: any) {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     await ensureTable();
     await ensureBackupTable();
 
@@ -160,7 +194,31 @@ export default async function handler(req: any, res: any) {
 
       const result = await sql`select id, school_data, submissions, updated_at from app_state where id = ${STATE_ID} limit 1`;
       const row = result.rows[0] || null;
-      return res.status(200).json({ ok: true, data: row });
+      if (!row) return res.status(200).json({ ok: true, data: null });
+
+      const school = parseArray<SchoolClass>(row.school_data);
+      const subs = parseArray<SubmissionItem>(row.submissions);
+      const healedSchool = ensureClassesFromSubmissions(school, subs);
+
+      if (healedSchool.length !== school.length) {
+        await sql`
+          update app_state
+          set school_data = ${JSON.stringify(healedSchool)}::jsonb,
+              updated_at = now()
+          where id = ${STATE_ID}
+        `;
+        await saveDailyBackup(healedSchool, subs);
+      }
+
+      return res.status(200).json({
+        ok: true,
+        data: {
+          id: row.id,
+          school_data: healedSchool,
+          submissions: subs,
+          updated_at: row.updated_at,
+        },
+      });
     }
 
     if (req.method === 'POST' || req.method === 'PUT') {
@@ -234,8 +292,11 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      const mergedSchool = mergeSchoolData(existingSchool, incomingSchool);
       const mergedSubs = mergeSubmissions(existingSubs, incomingSubs);
+      const mergedSchool = ensureClassesFromSubmissions(
+        mergeSchoolData(existingSchool, incomingSchool),
+        mergedSubs,
+      );
 
       await sql`
         insert into app_state (id, school_data, submissions, updated_at)
