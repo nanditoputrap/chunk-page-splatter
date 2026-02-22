@@ -144,39 +144,48 @@ const HomeDashboard = () => {
       <p className="absolute bottom-6 text-xs text-muted-foreground font-medium">Created by dito</p>
 
       {showPinModal && (
-        <div className="fixed inset-0 z-[290] bg-card/70 backdrop-blur-sm p-4 flex items-center justify-center">
-          <GlassCard className="w-full max-w-md p-6 border border-border">
-            <h3 className="text-lg font-bold text-foreground mb-1">Masukkan PIN Log</h3>
-            <p className="text-xs text-muted-foreground mb-4">Menu log hanya untuk akses khusus.</p>
-            <input
-              type="password"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void verifyPinAndOpenLog();
-              }}
-              placeholder="PIN"
-              className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            {pinError && <p className="text-xs text-destructive font-semibold mt-2">{pinError}</p>}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowPinModal(false);
-                  setPinInput('');
-                  setPinError('');
+        <div className="fixed inset-0 z-[290] bg-card/65 backdrop-blur-md p-4 flex items-center justify-center">
+          <GlassCard className="w-full max-w-md p-0 overflow-hidden border border-border shadow-2xl">
+            <div className="relative px-6 pt-7 pb-5 border-b border-border bg-gradient-to-br from-card via-card to-primary/5">
+              <div className="absolute -top-8 -right-10 w-28 h-28 rounded-full bg-primary/10 blur-2xl" />
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
+                <Lock size={20} className="text-primary" />
+              </div>
+              <h3 className="text-xl font-bold text-foreground leading-tight">PIN Akses Log</h3>
+              <p className="text-xs text-muted-foreground mt-1">Masukkan PIN untuk membuka menu aktivitas.</p>
+            </div>
+
+            <div className="px-6 py-5">
+              <input
+                type="password"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void verifyPinAndOpenLog();
                 }}
-                className="px-3 py-2 rounded-lg text-sm bg-secondary text-muted-foreground hover:bg-secondary/80"
-              >
-                Batal
-              </button>
-              <button
-                onClick={() => void verifyPinAndOpenLog()}
-                disabled={loadingLogs}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:opacity-90 transition disabled:opacity-60"
-              >
-                {loadingLogs ? 'Memverifikasi...' : 'Masuk'}
-              </button>
+                placeholder="••••"
+                className="w-full bg-card border border-border rounded-xl px-4 py-3 text-base tracking-[0.2em] font-semibold text-center outline-none focus:ring-2 focus:ring-ring"
+              />
+              {pinError && <p className="text-xs text-destructive font-semibold mt-2">{pinError}</p>}
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowPinModal(false);
+                    setPinInput('');
+                    setPinError('');
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-sm bg-secondary text-muted-foreground hover:bg-secondary/80 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => void verifyPinAndOpenLog()}
+                  disabled={loadingLogs}
+                  className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:opacity-90 transition disabled:opacity-60"
+                >
+                  {loadingLogs ? 'Memverifikasi...' : 'Masuk'}
+                </button>
+              </div>
             </div>
           </GlassCard>
         </div>
