@@ -41,6 +41,17 @@ async function saveDailyBackup(schoolData: unknown, submissions: unknown) {
   `;
 }
 
+const isIsoDay = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const getAdminToken = (req: any) =>
+  String(req.headers?.['x-admin-token'] || req.query?.token || '');
+
+const isAdminAuthorized = (req: any) => {
+  const expected = process.env.STATE_ADMIN_TOKEN;
+  if (!expected) return false;
+  return getAdminToken(req) === expected;
+};
+
 type SchoolClass = {
   id: string;
   name: string;
@@ -112,6 +123,28 @@ export default async function handler(req: any, res: any) {
     await ensureBackupTable();
 
     if (req.method === 'GET') {
+      if (req.query?.admin === 'backups') {
+        if (!process.env.STATE_ADMIN_TOKEN) {
+          return res.status(503).json({ ok: false, error: 'STATE_ADMIN_TOKEN is not configured' });
+        }
+        if (!isAdminAuthorized(req)) {
+          return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        const limitParam = Number(req.query?.limit || 30);
+        const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(365, limitParam)) : 30;
+        const backups = await sql`
+          select
+            day,
+            captured_at,
+            jsonb_array_length(school_data) as class_count,
+            jsonb_array_length(submissions) as submission_count
+          from app_state_daily_backup
+          order by day desc
+          limit ${limit}
+        `;
+        return res.status(200).json({ ok: true, backups: backups.rows });
+      }
+
       const result = await sql`select id, school_data, submissions, updated_at from app_state where id = ${STATE_ID} limit 1`;
       const row = result.rows[0] || null;
       return res.status(200).json({ ok: true, data: row });
@@ -119,6 +152,51 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'POST' || req.method === 'PUT') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+
+      if (body.adminAction === 'restoreBackup') {
+        if (!process.env.STATE_ADMIN_TOKEN) {
+          return res.status(503).json({ ok: false, error: 'STATE_ADMIN_TOKEN is not configured' });
+        }
+        if (!isAdminAuthorized(req)) {
+          return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+
+        const day = String(body.day || '').trim();
+        if (!isIsoDay(day)) {
+          return res.status(400).json({ ok: false, error: 'Invalid day format. Use YYYY-MM-DD' });
+        }
+
+        const backupRow = await sql`
+          select school_data, submissions
+          from app_state_daily_backup
+          where day = ${day}::date
+          limit 1
+        `;
+        const backup = backupRow.rows[0];
+        if (!backup) {
+          return res.status(404).json({ ok: false, error: 'Backup not found' });
+        }
+
+        const backupSchool = parseArray<SchoolClass>(backup.school_data);
+        const backupSubs = parseArray<SubmissionItem>(backup.submissions);
+        await sql`
+          insert into app_state (id, school_data, submissions, updated_at)
+          values (${STATE_ID}, ${JSON.stringify(backupSchool)}::jsonb, ${JSON.stringify(backupSubs)}::jsonb, now())
+          on conflict (id)
+          do update set
+            school_data = excluded.school_data,
+            submissions = excluded.submissions,
+            updated_at = now()
+        `;
+
+        return res.status(200).json({
+          ok: true,
+          restoredDay: day,
+          classCount: backupSchool.length,
+          submissionCount: backupSubs.length,
+        });
+      }
+
       const incomingSchool = parseArray<SchoolClass>(body.schoolData);
       const incomingSubs = parseArray<SubmissionItem>(body.submissions);
 
