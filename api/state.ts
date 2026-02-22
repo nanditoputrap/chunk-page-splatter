@@ -17,6 +17,30 @@ async function ensureTable() {
   `;
 }
 
+async function ensureBackupTable() {
+  await sql`
+    create table if not exists app_state_daily_backup (
+      day date primary key,
+      school_data jsonb not null default '[]'::jsonb,
+      submissions jsonb not null default '[]'::jsonb,
+      captured_at timestamptz not null default now()
+    )
+  `;
+}
+
+async function saveDailyBackup(schoolData: unknown, submissions: unknown) {
+  await sql`
+    insert into app_state_daily_backup (day, school_data, submissions, captured_at)
+    values (
+      timezone('UTC', now())::date,
+      ${JSON.stringify(schoolData)}::jsonb,
+      ${JSON.stringify(submissions)}::jsonb,
+      now()
+    )
+    on conflict (day) do nothing
+  `;
+}
+
 type SchoolClass = {
   id: string;
   name: string;
@@ -85,6 +109,7 @@ const mergeSubmissions = (existing: SubmissionItem[], incoming: SubmissionItem[]
 export default async function handler(req: any, res: any) {
   try {
     await ensureTable();
+    await ensureBackupTable();
 
     if (req.method === 'GET') {
       const result = await sql`select id, school_data, submissions, updated_at from app_state where id = ${STATE_ID} limit 1`;
@@ -102,6 +127,22 @@ export default async function handler(req: any, res: any) {
       const existingSchool = parseArray<SchoolClass>(existing?.school_data);
       const existingSubs = parseArray<SubmissionItem>(existing?.submissions);
 
+      const forceOverwrite = String(req.query?.force || req.headers?.['x-force-overwrite'] || '') === '1';
+      const suspiciousShrink =
+        existingSchool.length >= 8 &&
+        incomingSchool.length > 0 &&
+        incomingSchool.length <= Math.max(3, Math.floor(existingSchool.length * 0.4));
+      if (suspiciousShrink && !forceOverwrite) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Suspicious schoolData shrink blocked',
+          details: {
+            existingClasses: existingSchool.length,
+            incomingClasses: incomingSchool.length,
+          },
+        });
+      }
+
       const mergedSchool = mergeSchoolData(existingSchool, incomingSchool);
       const mergedSubs = mergeSubmissions(existingSubs, incomingSubs);
 
@@ -114,6 +155,7 @@ export default async function handler(req: any, res: any) {
           submissions = excluded.submissions,
           updated_at = now()
       `;
+      await saveDailyBackup(mergedSchool, mergedSubs);
 
       return res.status(200).json({ ok: true });
     }
