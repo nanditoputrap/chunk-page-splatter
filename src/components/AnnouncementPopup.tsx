@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 type AnnouncementPopupProps = {
   open: boolean;
@@ -115,7 +116,7 @@ const AnnouncementPopup = ({ open, onClose }: AnnouncementPopupProps) => {
 
   if (!shouldRender) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[280] p-2 sm:p-4 flex items-center justify-center">
       <div className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`} />
       <div className={`relative w-full max-w-xl overflow-hidden rounded-[1.5rem] bg-slate-100 shadow-2xl border border-white/40 transition-all duration-200 ${isVisible ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[0.98] translate-y-1'}`}>
@@ -169,7 +170,8 @@ const AnnouncementPopup = ({ open, onClose }: AnnouncementPopupProps) => {
           <p className="text-center text-slate-400 font-extrabold tracking-[0.18em] text-[10px] sm:text-xs">TAHUN AJARAN 2025/2026</p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
