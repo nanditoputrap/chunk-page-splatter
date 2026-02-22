@@ -28,6 +28,7 @@ const HomeDashboard = () => {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [logs, setLogs] = useState<ActivityLogItem[]>([]);
   const [logFilter, setLogFilter] = useState('');
+  const [activeTab, setActiveTab] = useState<'changes' | 'sync'>('changes');
 
   const handleRoleSelect = (role: string) => {
     setUserRole(role);
@@ -36,10 +37,6 @@ const HomeDashboard = () => {
 
   const openLogPanel = async () => {
     setPinError('');
-    if (pinInput !== '2167') {
-      setPinError('Kunci salah.');
-      return;
-    }
     setLoadingLogs(true);
     try {
       const res = await fetch('/api/state', {
@@ -51,11 +48,13 @@ const HomeDashboard = () => {
         },
       });
       const payload = await res.json();
-      if (!res.ok || !payload?.ok) throw new Error(payload?.error || `HTTP ${res.status}`);
+      if (!res.ok || !payload?.ok) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
       setLogs(Array.isArray(payload.logs) ? payload.logs : []);
       setPinError('');
     } catch {
-      setPinError('Gagal memuat log.');
+      setPinError('PIN salah atau gagal memuat log.');
     } finally {
       setLoadingLogs(false);
     }
@@ -73,6 +72,26 @@ const HomeDashboard = () => {
       log.browser || '',
     ].join(' ').toLowerCase().includes(q);
   });
+
+  const syncLogs = filteredLogs.filter((log) => log.event_type === 'state_sync');
+  const changeLogs = filteredLogs.filter((log) => log.event_type !== 'state_sync');
+
+  const isDataPokokEvent = (log: ActivityLogItem) =>
+    ['class_added', 'class_updated', 'class_removed', 'student_added', 'student_removed', 'backup_restore'].includes(log.event_type) ||
+    log.actor_role === 'kesiswaan';
+
+  const getLogCardClass = (log: ActivityLogItem) => {
+    if (isDataPokokEvent(log)) {
+      return 'border-orange-200 bg-orange-50/70';
+    }
+    if (log.actor_role === 'student') {
+      return 'border-blue-200 bg-blue-50/70';
+    }
+    if (log.actor_role === 'teacher') {
+      return 'border-emerald-200 bg-emerald-50/70';
+    }
+    return 'border-border bg-card/60';
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen animate-in fade-in duration-700 p-6 relative">
@@ -126,14 +145,15 @@ const HomeDashboard = () => {
                 <p className="text-xs text-muted-foreground">Semua perubahan pengisian/data siswa-guru.</p>
               </div>
               <button
-                onClick={() => {
-                  setShowLogModal(false);
-                  setPinInput('');
-                  setPinError('');
-                  setLogFilter('');
-                }}
-                className="p-2 bg-secondary rounded-full text-muted-foreground hover:bg-secondary/80"
-              >
+                  onClick={() => {
+                    setShowLogModal(false);
+                    setPinInput('');
+                    setPinError('');
+                    setLogFilter('');
+                    setActiveTab('changes');
+                  }}
+                  className="p-2 bg-secondary rounded-full text-muted-foreground hover:bg-secondary/80"
+                >
                 <X size={16} />
               </button>
             </div>
@@ -141,10 +161,10 @@ const HomeDashboard = () => {
             <div className="p-4 border-b border-border space-y-3">
               <div className="flex flex-col md:flex-row gap-2 md:items-center">
                 <input
-                  type="password"
+                  type="text"
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
-                  placeholder="Masukkan kunci log (2167)"
+                  placeholder="Masukkan PIN log"
                   className="w-full md:w-64 bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
                 <button
@@ -167,13 +187,36 @@ const HomeDashboard = () => {
               {pinError && <p className="text-xs text-destructive font-semibold">{pinError}</p>}
             </div>
 
-            <div className="h-[calc(85vh-170px)] overflow-auto custom-scrollbar p-4 space-y-2">
+            <div className="px-4 pt-3 border-b border-border flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab('changes')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  activeTab === 'changes'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                }`}
+              >
+                Log Perubahan ({changeLogs.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('sync')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  activeTab === 'sync'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                }`}
+              >
+                Log Sinkronisasi ({syncLogs.length})
+              </button>
+            </div>
+
+            <div className="h-[calc(85vh-215px)] overflow-auto custom-scrollbar p-4 space-y-2">
               {loadingLogs && <p className="text-sm text-muted-foreground">Memuat log...</p>}
-              {!loadingLogs && filteredLogs.length === 0 && (
+              {!loadingLogs && (activeTab === 'changes' ? changeLogs.length === 0 : syncLogs.length === 0) && (
                 <p className="text-sm text-muted-foreground">Belum ada log atau belum dibuka dengan kunci.</p>
               )}
-              {!loadingLogs && filteredLogs.map((log) => (
-                <div key={log.id} className="p-3 rounded-xl border border-border bg-card/60">
+              {!loadingLogs && (activeTab === 'changes' ? changeLogs : syncLogs).map((log) => (
+                <div key={log.id} className={`p-3 rounded-xl border ${getLogCardClass(log)}`}>
                   <p className="text-sm font-semibold text-foreground">{log.message}</p>
                   <div className="mt-1 text-[11px] text-muted-foreground grid md:grid-cols-3 gap-x-3 gap-y-1">
                     <span>Waktu: {new Date(log.created_at).toLocaleString('id-ID')}</span>
