@@ -546,6 +546,13 @@ export default async function handler(req: any, res: any) {
         mergedSubs,
         actorRole,
       );
+      if (activityLogs.length === 0) {
+        activityLogs.push({
+          eventType: 'state_sync',
+          message: `Sinkronisasi data (${mergedSchool.length} kelas, ${mergedSubs.length} pengisian)`,
+          actorRole,
+        });
+      }
 
       await sql`
         insert into app_state (id, school_data, submissions, updated_at)
