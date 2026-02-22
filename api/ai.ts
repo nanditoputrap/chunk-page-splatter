@@ -78,22 +78,58 @@ async function loadState(): Promise<AppState> {
   const result = await sql`select school_data, submissions from app_state where id = ${STATE_ID} limit 1`;
   const row = result.rows[0];
   if (!row) return { school_data: [], submissions: [] };
+  const schoolData = parseArray<SchoolClass>(row.school_data);
+  const submissions = parseArray<SubmissionItem>(row.submissions);
   return {
-    school_data: parseArray<SchoolClass>(row.school_data),
-    submissions: parseArray<SubmissionItem>(row.submissions),
+    school_data: ensureClassesFromSubmissions(schoolData, submissions),
+    submissions,
   };
 }
 
 async function saveState(state: AppState) {
+  const healedSchool = ensureClassesFromSubmissions(state.school_data, state.submissions);
   await sql`
     insert into app_state (id, school_data, submissions, updated_at)
-    values (${STATE_ID}, ${JSON.stringify(state.school_data)}::jsonb, ${JSON.stringify(state.submissions)}::jsonb, now())
+    values (${STATE_ID}, ${JSON.stringify(healedSchool)}::jsonb, ${JSON.stringify(state.submissions)}::jsonb, now())
     on conflict (id)
     do update set
       school_data = excluded.school_data,
       submissions = excluded.submissions,
       updated_at = now()
   `;
+  state.school_data = healedSchool;
+}
+
+function ensureClassesFromSubmissions(classes: SchoolClass[], submissions: SubmissionItem[]) {
+  const byId = new Map<string, SchoolClass>();
+
+  classes.forEach((cls) => {
+    const id = String(cls.id || cls.name || '').trim();
+    if (!id) return;
+    byId.set(id, {
+      id,
+      name: cls.name || id,
+      teacher: cls.teacher || '',
+      students: Array.isArray(cls.students) ? [...new Set(cls.students.filter(Boolean))] : [],
+    });
+  });
+
+  submissions.forEach((sub) => {
+    const id = String(sub.classId || sub.className || '').trim();
+    if (!id) return;
+    const className = String(sub.className || id).trim() || id;
+    const studentName = String(sub.studentName || '').trim();
+    if (!byId.has(id)) {
+      byId.set(id, { id, name: className, teacher: '', students: [] });
+    }
+    const cls = byId.get(id)!;
+    if (!cls.name && className) cls.name = className;
+    if (studentName && !cls.students.includes(studentName)) {
+      cls.students = [...cls.students, studentName];
+    }
+  });
+
+  return Array.from(byId.values());
 }
 
 function executeTool(name: AIPlan['action'], args: any, state: AppState) {

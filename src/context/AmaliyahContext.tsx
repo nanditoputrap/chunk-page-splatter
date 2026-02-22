@@ -91,6 +91,39 @@ const hasMeaningfulData = (classes: ClassData[], subs: Submission[]) => {
   return classes.some((cls) => Array.isArray(cls.students) && cls.students.length > 0);
 };
 
+const healClassesFromSubmissions = (classes: ClassData[], subs: Submission[]) => {
+  const byId = new Map<string, ClassData>();
+
+  classes.forEach((cls) => {
+    const id = String(cls.id || cls.name || '').trim();
+    if (!id) return;
+    byId.set(id, {
+      ...cls,
+      id,
+      name: cls.name || id,
+      teacher: cls.teacher || '',
+      students: Array.isArray(cls.students) ? [...new Set(cls.students.filter(Boolean))] : [],
+    });
+  });
+
+  subs.forEach((sub) => {
+    const id = String(sub.classId || sub.className || '').trim();
+    if (!id) return;
+    const className = String(sub.className || id).trim() || id;
+    const studentName = String(sub.studentName || '').trim();
+    if (!byId.has(id)) {
+      byId.set(id, { id, name: className, teacher: '', students: [] });
+    }
+    const cls = byId.get(id)!;
+    if (!cls.name && className) cls.name = className;
+    if (studentName && !cls.students.includes(studentName)) {
+      cls.students = [...cls.students, studentName];
+    }
+  });
+
+  return Array.from(byId.values());
+};
+
 const writeLocalCache = (schoolData: ClassData[], submissions: Submission[]) => {
   localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(schoolData));
   localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify(submissions));
@@ -151,9 +184,10 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
       const sourceSubs = hasCurrentSubs ? currentSubs : [...currentSubs, ...legacySubs];
       const normalizedSubs = mergeSubmissions(normalizeSubmissions(sourceSubs, normalizedSchool));
 
-      setSchoolData(normalizedSchool);
+      const healedLocalSchool = healClassesFromSubmissions(normalizedSchool, normalizedSubs);
+      setSchoolData(healedLocalSchool);
       setSubmissions(normalizedSubs);
-      writeLocalCache(normalizedSchool, normalizedSubs);
+      writeLocalCache(healedLocalSchool, normalizedSubs);
 
       if (!hasMigrated) {
         [...LEGACY_SUBMISSION_KEYS, ...LEGACY_SCHOOL_KEYS].forEach((key) => localStorage.removeItem(key));
@@ -174,24 +208,30 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
           const localHasData = hasMeaningfulData(normalizedSchool, normalizedSubs);
 
           if (cloudHasData) {
-            const finalSchool = cloudSchool.length > 0 ? cloudSchool : normalizedSchool;
+            const finalSchool = healClassesFromSubmissions(
+              cloudSchool.length > 0 ? cloudSchool : normalizedSchool,
+              cloudSubs,
+            );
             setSchoolData(finalSchool);
             setSubmissions(cloudSubs);
             writeLocalCache(finalSchool, cloudSubs);
           } else if (localHasData) {
-            setSchoolData(normalizedSchool);
+            const fixedLocal = healClassesFromSubmissions(normalizedSchool, normalizedSubs);
+            setSchoolData(fixedLocal);
             setSubmissions(normalizedSubs);
-            writeLocalCache(normalizedSchool, normalizedSubs);
-            await saveCloudState(normalizedSchool, normalizedSubs);
+            writeLocalCache(fixedLocal, normalizedSubs);
+            await saveCloudState(fixedLocal, normalizedSubs);
           } else {
             const safeSchool = normalizedSchool.length > 0 ? normalizedSchool : DEFAULT_CLASSES;
-            setSchoolData(safeSchool);
+            const fixedSafeSchool = healClassesFromSubmissions(safeSchool, normalizedSubs);
+            setSchoolData(fixedSafeSchool);
             setSubmissions(normalizedSubs);
-            writeLocalCache(safeSchool, normalizedSubs);
-            await saveCloudState(safeSchool, normalizedSubs);
+            writeLocalCache(fixedSafeSchool, normalizedSubs);
+            await saveCloudState(fixedSafeSchool, normalizedSubs);
           }
         } else {
-          await saveCloudState(normalizedSchool, normalizedSubs);
+          const fixedLocal = healClassesFromSubmissions(normalizedSchool, normalizedSubs);
+          await saveCloudState(fixedLocal, normalizedSubs);
         }
       } catch (err) {
         // API may be unavailable in local Vite dev; local cache still works.
@@ -211,10 +251,15 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!isHydrated) return;
-    writeLocalCache(schoolData, submissions);
+    const healedSchool = healClassesFromSubmissions(schoolData, submissions);
+    if (healedSchool.length !== schoolData.length) {
+      setSchoolData(healedSchool);
+      return;
+    }
+    writeLocalCache(healedSchool, submissions);
 
     const timeoutId = window.setTimeout(() => {
-      void saveCloudState(schoolData, submissions).catch((err) => {
+      void saveCloudState(healedSchool, submissions).catch((err) => {
         console.error('Cloud save failed, local cache kept.', err);
       });
     }, 300);
@@ -223,7 +268,7 @@ export const AmaliyahProvider = ({ children }: { children: ReactNode }) => {
   }, [isHydrated, schoolData, submissions]);
 
   const syncDataNow = useCallback(async (nextSchoolData?: ClassData[]) => {
-    const targetSchoolData = nextSchoolData ?? schoolData;
+    const targetSchoolData = healClassesFromSubmissions(nextSchoolData ?? schoolData, submissions);
     writeLocalCache(targetSchoolData, submissions);
     await saveCloudState(targetSchoolData, submissions);
   }, [schoolData, submissions]);
