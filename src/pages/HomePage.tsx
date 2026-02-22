@@ -22,6 +22,7 @@ type ActivityLogItem = {
 const HomeDashboard = () => {
   const navigate = useNavigate();
   const { setUserRole } = useAmaliyah();
+  const [showPinModal, setShowPinModal] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
@@ -35,7 +36,7 @@ const HomeDashboard = () => {
     navigate('/classes');
   };
 
-  const openLogPanel = async () => {
+  const verifyPinAndOpenLog = async () => {
     setPinError('');
     setLoadingLogs(true);
     try {
@@ -53,8 +54,10 @@ const HomeDashboard = () => {
       }
       setLogs(Array.isArray(payload.logs) ? payload.logs : []);
       setPinError('');
+      setShowPinModal(false);
+      setShowLogModal(true);
     } catch {
-      setPinError('PIN salah atau gagal memuat log.');
+      setPinError('PIN salah.');
     } finally {
       setLoadingLogs(false);
     }
@@ -96,7 +99,11 @@ const HomeDashboard = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen animate-in fade-in duration-700 p-6 relative">
       <button
-        onClick={() => setShowLogModal(true)}
+        onClick={() => {
+          setPinInput('');
+          setPinError('');
+          setShowPinModal(true);
+        }}
         className="absolute top-6 right-8 w-12 h-12 rounded-full bg-card border border-border text-foreground shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition flex items-center justify-center"
         title="Lihat Log Aktivitas"
         aria-label="Lihat Log Aktivitas"
@@ -136,6 +143,45 @@ const HomeDashboard = () => {
       </div>
       <p className="absolute bottom-6 text-xs text-muted-foreground font-medium">Created by dito</p>
 
+      {showPinModal && (
+        <div className="fixed inset-0 z-[290] bg-card/70 backdrop-blur-sm p-4 flex items-center justify-center">
+          <GlassCard className="w-full max-w-md p-6 border border-border">
+            <h3 className="text-lg font-bold text-foreground mb-1">Masukkan PIN Log</h3>
+            <p className="text-xs text-muted-foreground mb-4">Menu log hanya untuk akses khusus.</p>
+            <input
+              type="password"
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void verifyPinAndOpenLog();
+              }}
+              placeholder="PIN"
+              className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            {pinError && <p className="text-xs text-destructive font-semibold mt-2">{pinError}</p>}
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowPinModal(false);
+                  setPinInput('');
+                  setPinError('');
+                }}
+                className="px-3 py-2 rounded-lg text-sm bg-secondary text-muted-foreground hover:bg-secondary/80"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => void verifyPinAndOpenLog()}
+                disabled={loadingLogs}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:opacity-90 transition disabled:opacity-60"
+              >
+                {loadingLogs ? 'Memverifikasi...' : 'Masuk'}
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
       {showLogModal && (
         <div className="fixed inset-0 z-[300] bg-card/70 backdrop-blur-sm p-4 flex items-center justify-center">
           <GlassCard className="w-full max-w-5xl h-[85vh] p-0 overflow-hidden border border-border">
@@ -147,8 +193,6 @@ const HomeDashboard = () => {
               <button
                   onClick={() => {
                     setShowLogModal(false);
-                    setPinInput('');
-                    setPinError('');
                     setLogFilter('');
                     setActiveTab('changes');
                   }}
@@ -158,33 +202,17 @@ const HomeDashboard = () => {
               </button>
             </div>
 
-            <div className="p-4 border-b border-border space-y-3">
-              <div className="flex flex-col md:flex-row gap-2 md:items-center">
+            <div className="p-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Search size={14} className="text-muted-foreground" />
                 <input
                   type="text"
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
-                  placeholder="Masukkan PIN log"
-                  className="w-full md:w-64 bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  value={logFilter}
+                  onChange={(e) => setLogFilter(e.target.value)}
+                  placeholder="Cari log..."
+                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
-                <button
-                  onClick={() => void openLogPanel()}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:opacity-90 transition"
-                >
-                  Buka Log
-                </button>
-                <div className="flex items-center gap-2 flex-1">
-                  <Search size={14} className="text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={logFilter}
-                    onChange={(e) => setLogFilter(e.target.value)}
-                    placeholder="Cari log..."
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
               </div>
-              {pinError && <p className="text-xs text-destructive font-semibold">{pinError}</p>}
             </div>
 
             <div className="px-4 pt-3 border-b border-border flex items-center gap-2">
