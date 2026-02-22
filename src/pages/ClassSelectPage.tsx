@@ -11,6 +11,11 @@ const ClassSelectPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingDataPokok, setIsSavingDataPokok] = useState(false);
   const [dataModal, setDataModal] = useState<{ show: boolean; type: 'addClass' | 'addStudent' | null; classIndex?: number }>({ show: false, type: null });
+  const legacySeedClassIds = new Set(['7A', '8A', '9A']);
+  const hasStructuredClasses = schoolData.some((c) => /^[789][AB][12]$/.test(String(c.id || '').trim()));
+  const visibleSchoolData = schoolData
+    .map((cls, index) => ({ cls, index }))
+    .filter(({ cls }) => !hasStructuredClasses || !legacySeedClassIds.has(String(cls.id || '').trim()));
 
   const handleUpdateClass = (classIndex: number, field: string, value: string) => {
     const newData = schoolData.map((cls, idx) => (
@@ -113,7 +118,7 @@ const ClassSelectPage = () => {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {schoolData.map((cls, idx) => (
+        {visibleSchoolData.map(({ cls, index: realIndex }) => (
           <GlassCard key={cls.id} onClick={() => handleClassClick(cls)}
             className={`p-6 relative group overflow-hidden ${
               userRole === 'kesiswaan' && isEditing ? '' : 'cursor-pointer hover:shadow-xl hover:-translate-y-1'
@@ -122,20 +127,20 @@ const ClassSelectPage = () => {
               <div className="space-y-3">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs font-bold text-muted-foreground bg-secondary px-2 py-1 rounded">ID: {cls.id}</span>
-                  <button onClick={(e) => handleDeleteClass(e, idx)} className="text-destructive/50 hover:text-destructive bg-destructive/5 p-1 rounded">
+                  <button onClick={(e) => handleDeleteClass(e, realIndex)} className="text-destructive/50 hover:text-destructive bg-destructive/5 p-1 rounded">
                     <Trash2 size={16} />
                   </button>
                 </div>
-                <input type="text" value={cls.name} onChange={(e) => handleUpdateClass(idx, 'name', e.target.value)}
+                <input type="text" value={cls.name} onChange={(e) => handleUpdateClass(realIndex, 'name', e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full bg-card/50 border border-border rounded px-2 py-1 text-sm font-bold focus:ring-2 focus:ring-ring outline-none" />
-                <input type="text" value={cls.teacher} onChange={(e) => handleUpdateClass(idx, 'teacher', e.target.value)}
+                <input type="text" value={cls.teacher} onChange={(e) => handleUpdateClass(realIndex, 'teacher', e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full bg-card/50 border border-border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-ring outline-none" />
                 <div className="pt-2 border-t border-border mt-2">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-xs font-bold text-muted-foreground">Siswa ({cls.students.length})</span>
-                    <button onClick={(e) => { e.stopPropagation(); setDataModal({ show: true, type: 'addStudent', classIndex: idx }); }}
+                    <button onClick={(e) => { e.stopPropagation(); setDataModal({ show: true, type: 'addStudent', classIndex: realIndex }); }}
                       className="text-purple-600 text-[10px] font-bold hover:underline bg-purple-50 px-2 py-0.5 rounded">+ Tambah</button>
                   </div>
                   <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
@@ -145,10 +150,10 @@ const ClassSelectPage = () => {
                           type="text"
                           value={std}
                           onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => handleUpdateStudent(idx, sIdx, e.target.value)}
+                          onChange={(e) => handleUpdateStudent(realIndex, sIdx, e.target.value)}
                           className="flex-1 bg-transparent outline-none text-foreground pr-2"
                         />
-                        <button onClick={(e) => handleDeleteStudent(e, idx, sIdx)} className="text-muted-foreground hover:text-destructive">
+                        <button onClick={(e) => handleDeleteStudent(e, realIndex, sIdx)} className="text-muted-foreground hover:text-destructive">
                           <X size={12} />
                         </button>
                       </div>
