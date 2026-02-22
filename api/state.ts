@@ -43,8 +43,21 @@ async function saveDailyBackup(schoolData: unknown, submissions: unknown) {
 
 const isIsoDay = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
+const getQueryParam = (req: any, key: string) => {
+  if (req?.query && typeof req.query[key] !== 'undefined') {
+    return String(req.query[key]);
+  }
+  try {
+    const url = new URL(req.url || '', 'http://localhost');
+    const value = url.searchParams.get(key);
+    return value ?? '';
+  } catch {
+    return '';
+  }
+};
+
 const getAdminToken = (req: any) =>
-  String(req.headers?.['x-admin-token'] || req.query?.token || '');
+  String(req.headers?.['x-admin-token'] || getQueryParam(req, 'token') || '');
 
 const isAdminAuthorized = (req: any) => {
   const expected = process.env.STATE_ADMIN_TOKEN;
@@ -123,14 +136,14 @@ export default async function handler(req: any, res: any) {
     await ensureBackupTable();
 
     if (req.method === 'GET') {
-      if (req.query?.admin === 'backups') {
+      if (getQueryParam(req, 'admin') === 'backups') {
         if (!process.env.STATE_ADMIN_TOKEN) {
           return res.status(503).json({ ok: false, error: 'STATE_ADMIN_TOKEN is not configured' });
         }
         if (!isAdminAuthorized(req)) {
           return res.status(401).json({ ok: false, error: 'Unauthorized' });
         }
-        const limitParam = Number(req.query?.limit || 30);
+        const limitParam = Number(getQueryParam(req, 'limit') || 30);
         const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(365, limitParam)) : 30;
         const backups = await sql`
           select
@@ -205,7 +218,7 @@ export default async function handler(req: any, res: any) {
       const existingSchool = parseArray<SchoolClass>(existing?.school_data);
       const existingSubs = parseArray<SubmissionItem>(existing?.submissions);
 
-      const forceOverwrite = String(req.query?.force || req.headers?.['x-force-overwrite'] || '') === '1';
+      const forceOverwrite = String(getQueryParam(req, 'force') || req.headers?.['x-force-overwrite'] || '') === '1';
       const suspiciousShrink =
         existingSchool.length >= 8 &&
         incomingSchool.length > 0 &&
