@@ -78,6 +78,20 @@ const HomeDashboard = () => {
 
   const syncLogs = filteredLogs.filter((log) => log.event_type === 'state_sync');
   const changeLogs = filteredLogs.filter((log) => log.event_type !== 'state_sync');
+  const activeLogs = activeTab === 'changes' ? changeLogs : syncLogs;
+
+  const groupedByDay = activeLogs.reduce<Record<string, ActivityLogItem[]>>((acc, log) => {
+    const key = new Date(log.created_at).toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(log);
+    return acc;
+  }, {});
+  const groupedDays = Object.entries(groupedByDay);
 
   const isDataPokokEvent = (log: ActivityLogItem) =>
     ['class_added', 'class_updated', 'class_removed', 'student_added', 'student_removed', 'backup_restore'].includes(log.event_type) ||
@@ -249,23 +263,30 @@ const HomeDashboard = () => {
 
             <div className="h-[calc(85vh-215px)] overflow-auto custom-scrollbar p-4 space-y-2">
               {loadingLogs && <p className="text-sm text-muted-foreground">Memuat log...</p>}
-              {!loadingLogs && (activeTab === 'changes' ? changeLogs.length === 0 : syncLogs.length === 0) && (
+              {!loadingLogs && activeLogs.length === 0 && (
                 <p className="text-sm text-muted-foreground">Belum ada log atau belum dibuka dengan kunci.</p>
               )}
-              {!loadingLogs && (activeTab === 'changes' ? changeLogs : syncLogs).map((log) => (
-                <div key={log.id} className={`p-3 rounded-xl border ${getLogCardClass(log)}`}>
-                  <p className="text-sm font-semibold text-foreground">{log.message}</p>
-                  <div className="mt-1 text-[11px] text-muted-foreground grid md:grid-cols-3 gap-x-3 gap-y-1">
-                    <span>Waktu: {new Date(log.created_at).toLocaleString('id-ID')}</span>
-                    <span>Role: {log.actor_role || '-'}</span>
-                    <span>Aksi: {log.event_type}</span>
-                    <span>Kelas: {log.class_id || '-'}</span>
-                    <span>Siswa: {log.student_name || '-'}</span>
-                    <span>Tanggal data: {log.event_date || '-'}</span>
-                    <span>Perangkat: {log.device_type || '-'}</span>
-                    <span>Browser: {log.browser || '-'}</span>
-                    <span>IP: {log.ip || '-'}</span>
+              {!loadingLogs && groupedDays.map(([dayLabel, dayLogs]) => (
+                <div key={dayLabel} className="space-y-2">
+                  <div className="sticky top-0 z-10 text-[11px] font-bold uppercase tracking-wide text-muted-foreground bg-card/90 backdrop-blur-sm px-2 py-1 rounded-md border border-border">
+                    {dayLabel}
                   </div>
+                  {dayLogs.map((log) => (
+                    <div key={log.id} className={`p-3 rounded-xl border ${getLogCardClass(log)}`}>
+                      <p className="text-sm font-semibold text-foreground">{log.message}</p>
+                      <div className="mt-1 text-[11px] text-muted-foreground grid md:grid-cols-3 gap-x-3 gap-y-1">
+                        <span>Waktu: {new Date(log.created_at).toLocaleString('id-ID')}</span>
+                        <span>Role: {log.actor_role || '-'}</span>
+                        <span>Aksi: {log.event_type}</span>
+                        <span>Kelas: {log.class_id || '-'}</span>
+                        <span>Siswa: {log.student_name || '-'}</span>
+                        <span>Tanggal data: {log.event_date || '-'}</span>
+                        <span>Perangkat: {log.device_type || '-'}</span>
+                        <span>Browser: {log.browser || '-'}</span>
+                        <span>IP: {log.ip || '-'}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
