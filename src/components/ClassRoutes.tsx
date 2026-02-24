@@ -23,6 +23,11 @@ const ClassRoutes = () => {
   const { schoolData, setSelectedClass, userRole, setUserRole, selectedClass, isHydrated } = useAmaliyah();
   const location = useLocation();
   const navigate = useNavigate();
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const routeLeaf = pathParts[pathParts.length - 1] || '';
+  const isStudentPath = routeLeaf === 'students' || routeLeaf === 'form';
+  const effectiveRole = isStudentPath ? 'student' : userRole;
+  const isTeacherRole = effectiveRole === 'teacher' || effectiveRole === 'kesiswaan';
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -39,10 +44,11 @@ const ClassRoutes = () => {
 
   useEffect(() => {
     if (!isHydrated) return;
-    if (!userRole && (location.pathname.endsWith('/students') || location.pathname.endsWith('/form'))) {
+    // Student links should always open in student mode even if previous session was teacher/kesiswaan.
+    if (isStudentPath && userRole !== 'student') {
       setUserRole('student');
     }
-  }, [isHydrated, location.pathname, userRole, setUserRole]);
+  }, [isHydrated, isStudentPath, userRole, setUserRole]);
 
   if (!classId) {
     return <Navigate to="/classes" replace />;
@@ -68,15 +74,15 @@ const ClassRoutes = () => {
     useEffect(() => {
       if (!selectedClass) return;
       // auto-redirect based on role; assume 'student' for visitors
-      if (userRole === 'student') {
+      if (effectiveRole === 'student') {
         navigate(`/classes/${selectedClass.id}/students`);
-      } else if (userRole === 'teacher' || userRole === 'kesiswaan') {
+      } else if (effectiveRole === 'teacher' || effectiveRole === 'kesiswaan') {
         navigate(`/classes/${selectedClass.id}/dashboard`);
       } else {
         setUserRole('student');
         navigate(`/classes/${selectedClass.id}/students`);
       }
-    }, [userRole, selectedClass, navigate, setUserRole]);
+    }, [effectiveRole, selectedClass, navigate, setUserRole]);
 
     const handleRole = (role: string) => {
       if (role === 'student') {
@@ -163,8 +169,8 @@ const ClassRoutes = () => {
       <Route
         path="students"
         element={
-          userRole === 'teacher' || userRole === 'kesiswaan' ? (
-            <Navigate to="/classes" replace />
+          isTeacherRole ? (
+            <Navigate to={`/classes/${classId}/dashboard`} replace />
           ) : (
             <StudentSelectPage />
           )
@@ -173,8 +179,8 @@ const ClassRoutes = () => {
       <Route
         path="form"
         element={
-          userRole === 'teacher' || userRole === 'kesiswaan' ? (
-            <Navigate to="/classes" replace />
+          isTeacherRole ? (
+            <Navigate to={`/classes/${classId}/dashboard`} replace />
           ) : (
             <FormPage />
           )
@@ -183,9 +189,9 @@ const ClassRoutes = () => {
       <Route
         path="dashboard"
         element={
-          userRole === 'student' ? (
-            <Navigate to="/classes" replace />
-          ) : userRole ? (
+          effectiveRole === 'student' ? (
+            <Navigate to={`/classes/${classId}/students`} replace />
+          ) : effectiveRole ? (
             <TeacherDashboardPage />
           ) : (
             <DashboardLogin />

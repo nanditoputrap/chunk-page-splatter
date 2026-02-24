@@ -1,13 +1,23 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Settings, ArrowLeft, Plus, Trash2, X, Save } from 'lucide-react';
+import { Users, Settings, ArrowLeft, Plus, Trash2, X, Save, ArrowRightLeft } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
 import DataModal from '@/components/DataModal';
 import { useAmaliyah } from '@/context/AmaliyahContext';
+import { ClassData, Submission } from '@/lib/constants';
 
 const ClassSelectPage = () => {
   const navigate = useNavigate();
-  const { userRole, setSelectedClass, schoolData, setSchoolData, showNotif, syncDataNow } = useAmaliyah();
+  const {
+    userRole,
+    setSelectedClass,
+    schoolData,
+    setSchoolData,
+    submissions,
+    setSubmissions,
+    showNotif,
+    syncDataNow,
+  } = useAmaliyah();
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingDataPokok, setIsSavingDataPokok] = useState(false);
   const [dataModal, setDataModal] = useState<{ show: boolean; type: 'addClass' | 'addStudent' | null; classIndex?: number }>({ show: false, type: null });
@@ -16,6 +26,100 @@ const ClassSelectPage = () => {
   const visibleSchoolData = schoolData
     .map((cls, index) => ({ cls, index }))
     .filter(({ cls }) => !hasStructuredClasses || !legacySeedClassIds.has(String(cls.id || '').trim()));
+
+  const isSubmissionInClass = (sub: Submission, cls: ClassData) =>
+    sub.classId ? sub.classId === cls.id : sub.className === cls.name;
+
+  const isTruthy = (v: unknown) => Boolean(v);
+
+  const getSubmissionFillScore = (sub: Submission) => {
+    let score = 0;
+    if (sub.isHaid) score += 2;
+    if (sub.puasa === 'Ya' || sub.puasa === 'Berhalangan') score += 1;
+    score += Object.values(sub.sholatWajib || {}).filter(isTruthy).length;
+    if (sub.tarawih) score += 1;
+    if (Number(sub.rawatib || 0) > 0) score += 1;
+    if (sub.tilawahQuran || sub.tilawahJilid) score += 1;
+    if (sub.dzikir) score += 1;
+    if (sub.dhuha) score += 1;
+    if (sub.tahajjud) score += 1;
+    if (sub.birrul) score += 1;
+    if (sub.ceramah) score += 1;
+    if (sub.takjil) score += 1;
+    if (sub.sedekah) score += 1;
+    return score;
+  };
+
+  const pickMoreFilledSubmission = (a: Submission, b: Submission) => {
+    const scoreA = getSubmissionFillScore(a);
+    const scoreB = getSubmissionFillScore(b);
+    if (scoreA !== scoreB) return scoreA > scoreB ? a : b;
+    return String(a.timestamp || '') >= String(b.timestamp || '') ? a : b;
+  };
+
+  const mergeDuplicateSubmissions = (subs: Submission[]) => {
+    const byKey = new Map<string, Submission>();
+    subs.forEach((sub) => {
+      const classKey = sub.classId || sub.className || '';
+      const key = `${classKey}::${sub.studentName}::${sub.date}`;
+      const existing = byKey.get(key);
+      byKey.set(key, existing ? pickMoreFilledSubmission(existing, sub) : sub);
+    });
+    return Array.from(byKey.values());
+  };
+
+  const transferStudentData = (studentName: string, fromClass: ClassData, toClass: ClassData) => {
+    const updatedSchoolData = schoolData.map((cls) => {
+      if (cls.id === fromClass.id) {
+        return { ...cls, students: cls.students.filter((name) => name !== studentName) };
+      }
+      if (cls.id === toClass.id) {
+        const hasStudent = cls.students.includes(studentName);
+        return { ...cls, students: hasStudent ? cls.students : [...cls.students, studentName].sort() };
+      }
+      return cls;
+    });
+
+    const migratedSubmissions = submissions.map((sub) => {
+      if (sub.studentName !== studentName || !isSubmissionInClass(sub, fromClass)) return sub;
+      return {
+        ...sub,
+        classId: toClass.id,
+        className: toClass.name,
+      };
+    });
+
+    setSchoolData(updatedSchoolData);
+    setSubmissions(mergeDuplicateSubmissions(migratedSubmissions));
+  };
+
+  const removeStudentAndData = (studentName: string, fromClass: ClassData) => {
+    const updatedSchoolData = schoolData.map((cls) => {
+      if (cls.id !== fromClass.id) return cls;
+      return { ...cls, students: cls.students.filter((name) => name !== studentName) };
+    });
+    const updatedSubmissions = submissions.filter(
+      (sub) => !(sub.studentName === studentName && isSubmissionInClass(sub, fromClass)),
+    );
+    setSchoolData(updatedSchoolData);
+    setSubmissions(updatedSubmissions);
+  };
+
+  const getBestTargetClassForStudent = (studentName: string, fromClass: ClassData) => {
+    const candidates = schoolData.filter((cls) => cls.id !== fromClass.id && cls.students.includes(studentName));
+    if (!candidates.length) return null;
+
+    const ranked = candidates
+      .map((cls) => ({
+        cls,
+        score: submissions
+          .filter((sub) => sub.studentName === studentName && isSubmissionInClass(sub, cls))
+          .reduce((acc, sub) => acc + getSubmissionFillScore(sub), 0),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    return ranked[0].cls;
+  };
 
   const handleUpdateClass = (classIndex: number, field: string, value: string) => {
     const newData = schoolData.map((cls, idx) => (
@@ -36,12 +140,45 @@ const ClassSelectPage = () => {
   const handleDeleteStudent = (e: React.MouseEvent, classIndex: number, studentIndex: number) => {
     e.stopPropagation();
     if (confirm('Hapus siswa ini?')) {
-      const newData = schoolData.map((cls, idx) => {
-        if (idx !== classIndex) return cls;
-        return { ...cls, students: cls.students.filter((_, sIdx) => sIdx !== studentIndex) };
-      });
-      setSchoolData(newData);
+      const sourceClass = schoolData[classIndex];
+      const studentName = sourceClass?.students[studentIndex];
+      if (!sourceClass || !studentName) return;
+
+      const targetClass = getBestTargetClassForStudent(studentName, sourceClass);
+      if (targetClass) {
+        transferStudentData(studentName, sourceClass, targetClass);
+        showNotif(`Data ${studentName} dipindahkan ke ${targetClass.id} (data terisi diutamakan).`);
+      } else {
+        removeStudentAndData(studentName, sourceClass);
+        showNotif(`${studentName} dihapus dari ${sourceClass.id} beserta data kelas tersebut.`);
+      }
     }
+  };
+
+  const handleMoveStudent = (e: React.MouseEvent, sourceClassIndex: number, studentName: string) => {
+    e.stopPropagation();
+    const sourceClass = schoolData[sourceClassIndex];
+    if (!sourceClass) return;
+
+    const targetOptions = schoolData.filter((cls) => cls.id !== sourceClass.id);
+    if (!targetOptions.length) {
+      showNotif('Belum ada kelas tujuan.');
+      return;
+    }
+
+    const targetIds = targetOptions.map((cls) => cls.id).join(', ');
+    const targetInput = prompt(`Pindahkan ${studentName} ke kelas mana?\nPilihan: ${targetIds}`);
+    if (!targetInput) return;
+
+    const normalizedTarget = targetInput.trim().toUpperCase();
+    const targetClass = targetOptions.find((cls) => String(cls.id).trim().toUpperCase() === normalizedTarget);
+    if (!targetClass) {
+      showNotif('Kelas tujuan tidak ditemukan.');
+      return;
+    }
+
+    transferStudentData(studentName, sourceClass, targetClass);
+    showNotif(`${studentName} dipindahkan dari ${sourceClass.id} ke ${targetClass.id}. Data terisi ikut dipindah.`);
   };
 
   const handleUpdateStudent = (classIndex: number, studentIndex: number, value: string) => {
@@ -153,6 +290,13 @@ const ClassSelectPage = () => {
                           onChange={(e) => handleUpdateStudent(realIndex, sIdx, e.target.value)}
                           className="flex-1 bg-transparent outline-none text-foreground pr-2"
                         />
+                        <button
+                          onClick={(e) => handleMoveStudent(e, realIndex, std)}
+                          className="text-muted-foreground hover:text-blue-600 mr-1"
+                          title="Pindah kelas"
+                        >
+                          <ArrowRightLeft size={12} />
+                        </button>
                         <button onClick={(e) => handleDeleteStudent(e, realIndex, sIdx)} className="text-muted-foreground hover:text-destructive">
                           <X size={12} />
                         </button>

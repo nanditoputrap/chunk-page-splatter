@@ -18,7 +18,7 @@ const LoadingDots = ({ text }: { text: string }) => (
 
 const StudentSelectPage = () => {
   const navigate = useNavigate();
-  const { selectedClass, setSelectedStudent } = useAmaliyah();
+  const { selectedClass, setSelectedStudent, setUserRole, showNotif } = useAmaliyah();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAnnouncement, setShowAnnouncement] = useState(true);
 
@@ -37,6 +37,16 @@ const StudentSelectPage = () => {
       <div className="text-center mb-6">
         <h2 className="text-xl font-bold text-foreground">Halo, Siswa {selectedClass.id}</h2>
         <p className="text-muted-foreground text-sm">Siapa nama Anda?</p>
+        <button
+          onClick={() => {
+            setUserRole('student');
+            setSelectedStudent(null);
+            showNotif('Mode siswa diaktifkan ulang.');
+          }}
+          className="mt-2 text-[11px] font-semibold text-primary hover:underline"
+        >
+          Reset sesi siswa
+        </button>
       </div>
 
       <div className="sticky top-16 z-20 bg-background/90 backdrop-blur pb-4 pt-2">
